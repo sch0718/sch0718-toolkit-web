@@ -7,4 +7,4 @@
 - 패키지를 바꾸는 PR에는 `pnpm changeset` 기록을 넣습니다. 이미 발행한 버전은 덮어쓰지 않습니다.
 - 끝내기 전에 `pnpm run verify`와 `pnpm compat`(빌드 후)을 돌립니다. `pnpm ci`는 pnpm 11 내장 명령이라 쓰지 않습니다.
 - main에 직접 커밋하지 않고 브랜치·PR로 작업합니다.
-- 비밀값(npm 토큰, 키)을 저장소에 넣지 않습니다. 발행은 trusted publishing으로만 합니다.
+- 비밀값(토큰, 키)을 저장소에 넣지 않습니다. 발행은 릴리스 워크플로(GitHub Packages, `GITHUB_TOKEN`)로만 합니다.
