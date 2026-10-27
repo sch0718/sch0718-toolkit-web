@@ -278,7 +278,7 @@ export const NOTICE_FILE: RegExp;
 | `sync-worker/src/handler.ts`                            | `preflight(origin, { methods, headers: 'Authorization, Content-Type, X-Gazua-Session, X-Share-Token' })`                                                                                                                                              |
 | `src/lib/sync/config.ts`, `auth.ts`, `firebaseImpl.ts`  | `config.ts`·`auth.ts`는 패키지를 다시 내보내는 얇은 파일로 남기고(`readSyncConfig`의 기본값 `import.meta.env`), `firebaseImpl.ts`는 삭제한다                                                                                                          |
 | `src/lib/sync/api.ts`                                   | `createSessionClient({ sessionHeader: 'X-Gazua-Session', mapStatus })` 위에 profiles·shares 메서드를 만든다. `SyncApi` 타입은 그대로 둔다                                                                                                             |
-| `src/lib/ui/tokens.css`                                 | 가즈아 전용 토큰만 남긴다. `main.ts`에서 Pretendard, `@sch0718/ui-svelte/tokens.css`, 가즈아 `tokens.css` 순서로 불러온다                                                                                                                             |
+| `src/lib/ui/tokens.css`                                 | 가즈아 전용 토큰만 남긴다. `main.ts`는 `@sch0718/ui-svelte/tokens.css`, 가즈아 `tokens.css` 순서로 불러오고, 가즈아 `tokens.css`가 맨 앞에서 Pretendard를 `@import`한다                                                                               |
 | `src/lib/ui/theme.ts`                                   | `applyColorConvention`만 남기고 `applyTheme`은 다시 내보낸다                                                                                                                                                                                          |
 | `src/lib/ui/components/*`                               | 삭제하고 import 경로를 `@sch0718/ui-svelte`로 바꾼다. 시험은 패키지로 옮긴다                                                                                                                                                                          |
 | `scripts/build-notices.mjs`                             | `writeNotices` 설정만 남긴다. `tests/build-notices.test.mjs`는 가즈아 설정(upstream 매핑, `BUNDLED_DEV`) 시험만 남긴다                                                                                                                                |
@@ -326,6 +326,7 @@ export const NOTICE_FILE: RegExp;
 
 ## 14. 구현 중 바뀐 결정 (2026-10-27)
 
+- `@sch0718/firebase-session`의 peer `firebase`는 `^12.0.0`이다. 13에서 확인하면 넓힌다.
 - `@sch0718/firebase-session`은 `vite`를 peer로 선언하지 않는다. 선택적 peer라도 pnpm이 workspace 루트의 vite를 Worker만 쓰는 패키지(가즈아 sync-worker)에 연결해, 라이선스 고지의 prod 목록에 vite·esbuild·rollup이 들어왔다.
 - 가즈아 루트의 `@sch0718/*`는 모두 devDependencies다(9장). 번들되는 두 패키지는 `BUNDLED_DEV`로 고지에 싣는다.
 - ui-svelte 시험의 jsdom은 29.1.1로 고정한다. jsdom 30은 계산된 `background`를 풀어 쓰고 `var()`를 지워, 가즈아에서 옮긴 Toggle 시험 두 개가 깨진다. Dependabot은 jsdom 메이저를 올리지 않는다.
