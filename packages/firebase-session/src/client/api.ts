@@ -2,8 +2,10 @@
 // ID 토큰은 매 요청 Authorization: Bearer로, 기기 세션은 서비스가 정한 헤더로 보낸다. 토큰·세션은 로그에 남기지 않는다.
 
 export type BaseFail =
-  /** 다시 로그인해야 한다. code: missing-token·invalid-token·no-session·session-revoked·session-expired·reauth-required */
-  /** session: 실패한 요청이 쓴 기기 세션(그 사이 새로 로그인했으면 이 실패는 무시해야 한다). */
+  /**
+   * 다시 로그인해야 한다. code: missing-token·invalid-token·no-session·session-revoked·session-expired·reauth-required
+   * session: 실패한 요청이 쓴 기기 세션(그 사이 새로 로그인했으면 이 실패는 무시해야 한다).
+   */
   | { ok: false; kind: 'auth'; code: string; session?: string }
   | { ok: false; kind: 'not-allowed' }
   | { ok: false; kind: 'offline' }
@@ -50,7 +52,10 @@ export interface SessionClientOptions<X extends Fail> {
   credentials: Credentials;
   sessionHeader: string;
   fetch?: typeof fetch;
-  /** 공통 매핑 전에 불린다. 서비스 고유 상태(예: 409 conflict)를 바꾼다. undefined면 공통 매핑. */
+  /**
+   * 공통 매핑 전에 불린다. 서비스 고유 상태(예: 409 conflict)를 바꾼다. undefined면 공통 매핑.
+   * 던지면 안 된다. 던지면 send가 실패 결과를 돌려주지 않고 reject된다.
+   */
   mapStatus?: (status: number, body: Record<string, unknown>) => X | undefined;
 }
 
