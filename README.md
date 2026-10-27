@@ -1,6 +1,6 @@
 # sch0718-toolkit-web
 
-여러 웹 서비스(랜드마크, 가즈아, 앞으로 만들 서비스)가 함께 쓰는 TypeScript 패키지 모음입니다. 패키지마다 npm에 따로 발행하고, 각 서비스는 정확한 버전을 골라 설치합니다.
+여러 웹 서비스(랜드마크, 가즈아, 앞으로 만들 서비스)가 함께 쓰는 TypeScript 패키지 모음입니다. 패키지마다 **GitHub Packages**(npm 레지스트리)에 따로 발행하고, 각 서비스는 토큰으로 정확한 버전을 골라 설치합니다.
 
 같은 이름 규칙의 다른 저장소:
 
@@ -73,27 +73,43 @@ pnpm compat       # 발행할 tarball을 소비자 조건에 설치해 타입 �
 2. `.size-limit.json`에 크기 한도를, `fixtures/*/index.ts`에 import를 추가합니다.
 3. `pnpm changeset`으로 첫 버전(minor) 기록을 남깁니다.
 
+## 서비스에서 설치하기
+
+GitHub Packages의 npm 레지스트리는 **공개·비공개와 관계없이 설치에 토큰이 필요**하고, 지원하는 토큰은 personal access token (classic)뿐입니다. 출처: [Working with the npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)(2026-10-27 확인). 패키지는 비공개로 발행됩니다. 공개로 바꿀 수는 있지만 되돌릴 수 없어서 바꾸지 않았습니다.
+
+**1. 서비스 저장소에 `.npmrc`를 둡니다.** 토큰 값은 넣지 않고 환경변수 이름만 적습니다.
+
+```ini
+@sch0718:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+
+Yarn 1과 pnpm 모두 `.npmrc`의 `${변수}`를 읽습니다. `@sch0718/*`만 GitHub Packages로 가고 나머지 의존성은 그대로 npmjs.com에서 받습니다.
+
+**2. 토큰을 넣습니다.** 토큰은 `read:packages` 권한만 준 classic 토큰을 서비스 설치용으로 하나 만들어 씁니다.
+
+| 설치하는 곳                   | 방법                                                                                                                                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 내 컴퓨터                     | 셸 설정에 `export GITHUB_PACKAGES_TOKEN=<토큰>`. `.npmrc`의 변수가 비어 있으면 설치가 실패하므로 꼭 넣습니다                                                                                                                      |
+| 서비스의 GitHub Actions       | 패키지 설정 → Manage Actions access → Add repository로 그 서비스 저장소에 Read 권한을 줍니다. 그러면 워크플로에서 `GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}`으로 받을 수 있습니다. 패키지마다·서비스마다 한 번씩 합니다 |
+| Cloudflare Pages·Workers 빌드 | 프로젝트 설정의 빌드 환경변수(비밀값)에 `GITHUB_PACKAGES_TOKEN`으로 classic 토큰을 넣습니다. Production·Preview 둘 다 넣습니다                                                                                                    |
+
+- classic 토큰은 범위를 좁힐 수 없고 만료되면 모든 서비스의 설치가 한꺼번에 실패합니다. 만료일을 달력에 적어 두고, 바꿀 때 위 세 곳을 함께 갱신합니다.
+- 토큰 값은 저장소·로그·`.npmrc`에 적지 않습니다.
+
+**3. 설치합니다.** `yarn add @sch0718/seen-store@0.1.0` 또는 `pnpm add @sch0718/seen-store@0.1.0`. 정확한 버전으로 고정하고 lockfile을 커밋합니다.
+
 ## 릴리스
 
-PR마다 `pnpm changeset`으로 변경 기록을 남깁니다. main에 병합되면 [릴리스 워크플로](.github/workflows/release.yml)가 "chore: Version Packages" PR을 엽니다. 그 PR을 병합하면 npm에 발행하고 GitHub Release를 만듭니다.
+PR마다 `pnpm changeset`으로 변경 기록을 남깁니다. main에 병합되면 [릴리스 워크플로](.github/workflows/release.yml)가 "chore: Version Packages" PR을 엽니다. 그 PR을 병합하면 GitHub Packages에 발행하고 GitHub Release를 만듭니다. 발행 직후 그 버전을 레지스트리에서 실제로 설치해 import되는지 확인합니다(`scripts/smoke-installed.mjs`).
 
-- 발행은 npm **trusted publishing**(GitHub Actions OIDC)으로 합니다. npm 토큰을 저장소에 두지 않습니다. 공개 저장소에서 발행하면 provenance(출처 증명)가 붙습니다.
-- 이미 발행한 버전은 덮어쓰지 않습니다. 문제가 있으면 고친 버전을 새로 내고 `npm deprecate`로 표시합니다.
-- **미리보기:** `GITHUB_TOKEN=$(gh auth token) pnpm changeset version --snapshot <이름>`, `pnpm build && pnpm check:package`, `pnpm changeset publish --tag <이름>` 순서로 실행합니다. 빌드를 빼면 이전 `dist`가 발행됩니다. `latest`가 아닌 태그로 발행되며 이 변경은 main에 커밋하지 않습니다.
-- 각 서비스는 정확한 버전으로 고정하고, Dependabot 갱신 PR이 서비스 CI(크기 검사 포함)를 통과하면 병합합니다.
+- 발행은 이 저장소 워크플로의 `GITHUB_TOKEN`(`packages: write`)으로 합니다. 따로 등록하는 비밀값이나 외부 계정은 없습니다.
+- Version Packages PR은 워크플로 토큰으로 열려서 CI가 자동으로 돌지 않습니다(GitHub의 제한). 병합 전에 PR 화면에서 변경 기록과 버전만 확인합니다. 코드는 그 전 PR에서 이미 CI를 거쳤습니다.
+- 이미 발행한 버전은 덮어쓰지 않습니다. 문제가 있으면 고친 버전을 새로 냅니다.
+- **미리보기:** `GITHUB_TOKEN=$(gh auth token) pnpm changeset version --snapshot <이름>`, `pnpm build && pnpm check:package`, `pnpm changeset publish --tag <이름>` 순서로 실행합니다. 빌드를 빼면 이전 `dist`가 발행됩니다. `latest`가 아닌 태그로 발행되며 이 변경은 main에 커밋하지 않습니다. 로컬 발행에는 `write:packages` 권한이 있는 토큰이 `~/.npmrc`에 필요합니다.
+- 각 서비스는 정확한 버전으로 고정하고, 갱신 PR이 서비스 CI(크기 검사 포함)를 통과하면 병합합니다.
 
-### 첫 발행 (저장소 소유자가 직접)
-
-릴리스 워크플로는 저장소 변수 `RELEASE_ENABLED`가 `true`일 때만 돕니다. 아래를 마친 뒤 켭니다.
-
-1. npm 계정과 2FA를 준비합니다. 패키지 scope `@sch0718`은 npm 사용자 이름이 `sch0718`이어야 쓸 수 있습니다. 이름이 다르면 패키지 이름을 바꾸거나 npm 조직을 만듭니다.
-2. main에서 브랜치를 만들어 `GITHUB_TOKEN=$(gh auth token) pnpm version-packages`로 버전을 올리고, 그 PR을 병합합니다. 변경 기록 생성기(`@changesets/changelog-github`)가 GitHub에서 PR·작성자 정보를 읽으므로 토큰이 필요합니다. CI에서는 워크플로 토큰이 자동으로 들어갑니다.
-3. 로컬에서 `npm login` 후 `pnpm build && pnpm -r --filter "./packages/*" publish`로 첫 버전을 발행합니다.
-4. npmjs.com의 각 패키지 설정에서 Trusted publisher를 추가합니다. 값은 GitHub Actions, 저장소 `sch0718/sch0718-toolkit-web`, 워크플로 `release.yml`입니다. **Allowed actions에서 `npm publish`도 허용합니다.** 2026-09-03 이후 만든 설정은 기본으로 `npm stage publish`만 허용해서, 이것을 켜지 않으면 Changesets가 부르는 `pnpm publish`가 거부됩니다. 새 설정은 2일 안에 첫 발행을 해야 합니다. 출처: [npm Trusted publishing](https://docs.npmjs.com/trusted-publishers)(2026-10-27 확인)
-5. 저장소 Settings → Actions → General에서 "Allow GitHub Actions to create and approve pull requests"를 켭니다. Version Packages PR을 열기 위해서입니다.
-6. `gh variable set RELEASE_ENABLED --body true --repo sch0718/sch0718-toolkit-web`
-
-새 패키지를 추가할 때도 3~4를 합니다. trusted publisher는 패키지별 설정이고, 패키지가 npm에 있어야 설정할 수 있습니다. 새 패키지가 든 Version Packages PR을 병합하기 전에, 그 PR 브랜치에서 새 패키지만 로컬로 첫 발행하고 trusted publisher를 설정합니다. 그다음 PR을 병합하면 워크플로는 이미 발행된 버전을 건너뜁니다.
+**저장소 설정(한 번).** Settings → Actions → General → Workflow permissions에서 "Allow GitHub Actions to create and approve pull requests"가 켜져 있어야 Version Packages PR이 열립니다.
 
 ## 라이선스
 

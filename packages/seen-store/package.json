@@ -27,6 +27,6 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "publishConfig": {
-    "access": "public"
+    "registry": "https://npm.pkg.github.com"
   }
 }

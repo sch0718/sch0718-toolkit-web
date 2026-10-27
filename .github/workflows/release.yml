@@ -8,13 +8,11 @@ concurrency: release
 
 jobs:
   release:
-    # npm에서 trusted publisher를 설정하기 전에는 실행하지 않는다(README 「첫 발행」).
-    if: vars.RELEASE_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Version Packages PR 브랜치와 태그
+      contents: write # Version Packages PR 브랜치, 태그, GitHub Release
       pull-requests: write # Version Packages PR
-      id-token: write # npm trusted publishing(OIDC)
+      packages: write # GitHub Packages 발행
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -22,11 +20,23 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+          # @sch0718 scope를 GitHub Packages로 보내는 .npmrc를 만든다. 토큰은 NODE_AUTH_TOKEN에서 읽는다.
+          registry-url: https://npm.pkg.github.com
+          scope: '@sch0718'
       - run: pnpm install --frozen-lockfile
-      # 발행은 pnpm 11의 trusted publishing(OIDC)으로 한다. npm 토큰을 저장소에 두지 않는다.
-      - uses: changesets/action@v2.1.2
+      - id: changesets
+        uses: changesets/action@v2.1.2
         with:
           version-script: pnpm version-packages
           publish-script: pnpm release
           pr-title: 'chore: Version Packages'
           commit-message: 'chore: Version Packages'
+        env:
+          # 발행은 이 저장소의 워크플로 토큰으로 한다. 따로 등록하는 비밀값은 없다.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 방금 발행한 버전을 레지스트리에서 실제로 설치해 import해 본다.
+      - if: steps.changesets.outputs.published == 'true'
+        run: node scripts/smoke-installed.mjs
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
