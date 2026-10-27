@@ -66,7 +66,7 @@ if (config) {
 
 `api.send()` 위에 서비스 API를 만듭니다. 서비스 고유 상태(예: 409)는 `mapStatus`로 바꿉니다. Firebase SDK는 로그인할 때만 받는 별도 청크(`firebaseImpl-*.js`)가 됩니다.
 
-`firebaseAuth`는 `projectId`·`apiKey`가 같은 Firebase 앱이 있으면 그 앱을 쓰고, 앱이 하나도 없으면 기본 앱을, 다른 프로젝트의 앱만 있으면 `@sch0718/firebase-session` 이름의 앱을 만듭니다. Auth는 IndexedDB·localStorage 저장과 팝업 resolver로 초기화합니다. 다만 서비스가 그 앱에 `getAuth`·`initializeAuth`를 먼저 불렀다면 그 Auth를 그대로 쓰므로, 저장 방식과 resolver도 서비스가 정한 설정을 따릅니다.
+`firebaseAuth`는 `projectId`·`apiKey`가 같은 Firebase 앱이 있으면 그 앱을 쓰고, 앱이 하나도 없으면 기본 앱을, 그 밖에는 설정마다 `@sch0718/firebase-session:<projectId>:<apiKey>` 이름의 앱을 따로 만듭니다(서로 다른 설정을 여럿 써도 이름이 겹치지 않습니다). Auth는 IndexedDB·localStorage 저장과 팝업 resolver로 초기화합니다. 다만 서비스가 그 앱에 `getAuth`·`initializeAuth`를 먼저 불렀다면 그 Auth를 그대로 쓰므로, 저장 방식과 resolver도 서비스가 정한 설정을 따릅니다.
 
 ## Vite
 

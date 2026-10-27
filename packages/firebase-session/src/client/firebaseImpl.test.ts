@@ -81,7 +81,10 @@ describe('getAuthFor', () => {
     sdk.getApps.mockReturnValue([other]);
     const { getAuthFor } = await load();
     getAuthFor(cfg);
-    expect(sdk.initializeApp).toHaveBeenCalledWith(cfg, '@sch0718/firebase-session');
+    expect(sdk.initializeApp).toHaveBeenCalledWith(
+      cfg,
+      '@sch0718/firebase-session:project-a:key-a',
+    );
     expect(sdk.initializeAuth).not.toHaveBeenCalledWith(other, expect.anything());
   });
 
@@ -89,7 +92,35 @@ describe('getAuthFor', () => {
     sdk.getApps.mockReturnValue([app('[DEFAULT]', { projectId: 'project-a', apiKey: 'key-x' })]);
     const { getAuthFor } = await load();
     getAuthFor(cfg);
-    expect(sdk.initializeApp).toHaveBeenCalledWith(cfg, '@sch0718/firebase-session');
+    expect(sdk.initializeApp).toHaveBeenCalledWith(
+      cfg,
+      '@sch0718/firebase-session:project-a:key-a',
+    );
+  });
+
+  // 실제 SDK처럼, 이미 있는 이름을 다른 설정으로 만들면 app/duplicate-app으로 던지는 가짜 목록
+  it('서로 다른 설정 셋을 차례로 쓰면 기본 앱, 이름 붙인 앱 둘이 되고 실패하지 않는다', async () => {
+    const registry = new Map<string, { name: string; options: FirebaseConfig }>();
+    sdk.getApps.mockImplementation(() => [...registry.values()]);
+    sdk.initializeApp.mockImplementation((options: FirebaseConfig, name = '[DEFAULT]') => {
+      const found = registry.get(name);
+      if (found && JSON.stringify(found.options) !== JSON.stringify(options))
+        throw Object.assign(new Error('duplicate'), { code: 'app/duplicate-app' });
+      const created = found ?? app(name, options);
+      registry.set(name, created as { name: string; options: FirebaseConfig });
+      return created;
+    });
+    const cfgB = { ...cfg, projectId: 'project-b', apiKey: 'key-b' };
+    const cfgC = { ...cfg, projectId: 'project-c', apiKey: 'key-c' };
+    const { getAuthFor } = await load();
+    const names = [cfg, cfgB, cfgC].map(
+      (c) => (getAuthFor(c) as unknown as { app: { name: string } }).app.name,
+    );
+    expect(names).toEqual([
+      '[DEFAULT]',
+      '@sch0718/firebase-session:project-b:key-b',
+      '@sch0718/firebase-session:project-c:key-c',
+    ]);
   });
 
   it('같은 cfg로 두 번 부르면 Auth를 한 번만 만든다', async () => {

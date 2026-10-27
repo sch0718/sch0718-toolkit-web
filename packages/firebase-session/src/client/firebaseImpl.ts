@@ -17,8 +17,11 @@ import {
 import type { FirebaseConfig } from './config.js';
 import type { AuthUser, SignInResult } from './auth.js';
 
-/** 소비 앱이 다른 Firebase 프로젝트로 기본 앱을 이미 만들었을 때 따로 만드는 앱 이름 */
-const APP_NAME = '@sch0718/firebase-session';
+/**
+ * 소비 앱이 다른 Firebase 프로젝트로 앱을 이미 만들었을 때 따로 만드는 앱 이름.
+ * 설정마다 이름이 달라야 셋째 설정부터 app/duplicate-app으로 실패하지 않는다.
+ */
+const appName = (cfg: FirebaseConfig) => `@sch0718/firebase-session:${cfg.projectId}:${cfg.apiKey}`;
 
 // projectId + apiKey마다 Auth 하나. 다른 설정에 앞서 만든 Auth를 돌려주지 않는다.
 const instances = new Map<string, Auth>();
@@ -32,7 +35,7 @@ function appFor(cfg: FirebaseConfig): FirebaseApp {
   // 앱이 없으면 기본 앱([DEFAULT])을 만든다. Auth 저장 키에 앱 이름이 들어가므로
   // 이미 기본 앱으로 로그인한 사용자가 로그아웃되지 않게 이름을 바꾸지 않는다.
   if (apps.length === 0) return initializeApp(cfg);
-  return initializeApp(cfg, APP_NAME);
+  return initializeApp(cfg, appName(cfg));
 }
 
 export function getAuthFor(cfg: FirebaseConfig): Auth {
