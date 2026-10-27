@@ -12,6 +12,9 @@ updates:
       # jsdom 30은 계산된 background를 펼치면서 var()를 버려 Toggle 시험 둘이 깨진다. 29에 고정한다(2026-10-27).
       - dependency-name: jsdom
         update-types: ['version-update:semver-major']
+      # @sveltejs/package 3.x는 TypeScript 6을 요구한다. 선언 파일을 TS 5.9로 만들므로 2.x에 고정한다(2026-10-27).
+      - dependency-name: '@sveltejs/package'
+        update-types: ['version-update:semver-major']
     groups:
       dev-tools:
         patterns: ['*']
