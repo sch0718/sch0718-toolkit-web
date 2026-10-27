@@ -1,7 +1,14 @@
 // 발행 직후, 레지스트리에서 그 버전을 설치해 import되는지 확인한다(릴리스 워크플로에서 실행).
 // PUBLISHED: changesets/action의 published-packages 출력. 예: [{"name":"@sch0718/seen-store","version":"0.1.0"}]
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,7 +66,8 @@ export function checkInstalled(dir, name) {
 }
 
 // 스크립트로 직접 실행될 때만 레지스트리에서 설치해 확인한다. 시험에서는 checkInstalled만 불러 쓴다.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// 경로에 심볼릭 링크가 있어도 직접 실행을 알아보도록 실제 경로로 비교한다(아니면 아무것도 검사하지 않고 통과한다).
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const published = JSON.parse(process.env.PUBLISHED ?? '[]');
   const dir = mkdtempSync(join(tmpdir(), 'toolkit-smoke-'));
   // 저장소 밖 빈 폴더라 setup-node가 만든 사용자 .npmrc(@sch0718 → GitHub Packages)만 적용된다.
