@@ -1,0 +1,37 @@
+{
+  "name": "@sch0718/firebase-session",
+  "version": "0.0.0",
+  "description": "Firebase Google 로그인 + 이메일 허용 목록 + D1 기기 세션. Worker 검증, 브라우저 클라이언트, Vite 빌드 도우미.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "신춘호 (https://github.com/sch0718)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sch0718/sch0718-toolkit-web.git",
+    "directory": "packages/firebase-session"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./worker": {
+      "types": "./dist/worker/index.d.ts",
+      "default": "./dist/worker/index.js"
+    },
+    "./migrations/0001_users_sessions.sql": "./migrations/0001_users_sessions.sql",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp ../../LICENSE LICENSE",
+    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./migrations/0001_users_sessions.sql"
+  },
+  "dependencies": {
+    "jose": "^6.2.13"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
