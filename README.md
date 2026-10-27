@@ -42,7 +42,7 @@
 | 패키지 형식 검사        | [publint](https://github.com/publint/publint), [Are the types wrong?](https://github.com/arethetypeswrong/arethetypeswrong.github.io) |   1.3k / 1.6k |
 | 번들 크기 한도          | [Size Limit](https://github.com/ai/size-limit)                                                                                        |          7.0k |
 
-- 선언 파일은 TypeScript 5.9로 만듭니다. 쓰는 서비스 중 가장 낮은 버전(가즈아 5.9)에 맞춘 것이고, TS 6(랜드마크)에서도 호환 시험으로 확인합니다.
+- 선언 파일은 TypeScript 5.9로 만듭니다. 쓰는 서비스 중 가장 낮은 버전(가즈아 5.9)에 맞춘 것이고, TS 6(랜드마크)에서도 호환 시험으로 확인합니다. Dependabot은 TypeScript 메이저 버전을 올리지 않습니다(`.github/dependabot.yml`).
 - 번들러(tsup·tsdown 등)는 쓰지 않습니다. 패키지가 작고 의존성이 없어서 `tsc` 출력으로 충분합니다. 필요해지면 그때 고릅니다.
 
 ## 개발
