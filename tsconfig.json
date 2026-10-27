@@ -10,5 +10,6 @@
     "vitest.config.ts",
     "eslint.config.mjs",
     "scripts"
-  ]
+  ],
+  "exclude": ["packages/ui-svelte"]
 }
