@@ -21,6 +21,41 @@ describe('Firebase Auth CSP', () => {
     expect(directive(out, 'default-src')).toEqual(["'self'"]);
   });
 
+  it('frame-src가 없으면 default-src 뒤에 넣는다(가즈아 출력과 같은 바이트)', () => {
+    expect(applyFirebaseCsp(html, 'toolkit-test.firebaseapp.com')).toBe(
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src https://toolkit-test.firebaseapp.com; script-src 'self' https://apis.google.com; connect-src 'self' https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'" />`,
+    );
+  });
+
+  // 브라우저는 두 번째 frame-src를 무시하므로, 이미 있으면 그 목록에 더한다.
+  it('frame-src가 이미 있으면 그 목록에 인증 도메인을 더한다', () => {
+    const withFrame = html.replace(
+      "script-src 'self';",
+      "script-src 'self'; frame-src https://www.youtube.com 'self';",
+    );
+    const out = applyFirebaseCsp(withFrame, 'toolkit-test.firebaseapp.com');
+    expect(out.match(/frame-src/g)).toHaveLength(1);
+    expect(directive(out, 'frame-src')).toEqual([
+      'https://www.youtube.com',
+      "'self'",
+      'https://toolkit-test.firebaseapp.com',
+    ]);
+    expect(directive(out, 'script-src')).toEqual(["'self'", 'https://apis.google.com']);
+  });
+
+  it('frame-src가 이미 인증 도메인을 담고 있으면 다시 더하지 않는다', () => {
+    const withFrame = html.replace(
+      "script-src 'self';",
+      "script-src 'self'; frame-src https://toolkit-test.firebaseapp.com https://www.youtube.com;",
+    );
+    const out = applyFirebaseCsp(withFrame, 'toolkit-test.firebaseapp.com');
+    expect(out.match(/frame-src/g)).toHaveLength(1);
+    expect(directive(out, 'frame-src')).toEqual([
+      'https://toolkit-test.firebaseapp.com',
+      'https://www.youtube.com',
+    ]);
+  });
+
   it('CSP 토큰을 끼워 넣을 수 있는 도메인은 거절한다', () => {
     expect(() => applyFirebaseCsp(html, 'x.com; script-src *')).toThrow();
     expect(() => applyFirebaseCsp(html, 'https://x.firebaseapp.com')).toThrow();
