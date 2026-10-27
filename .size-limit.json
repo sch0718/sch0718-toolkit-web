@@ -24,5 +24,11 @@
     "path": "packages/vite-app/dist/index.js",
     "import": "{ createPwaOptions, devCsp }",
     "limit": "700 B"
+  },
+  {
+    "name": "@sch0718/kakao-share",
+    "path": "packages/kakao-share/dist/index.js",
+    "import": "*",
+    "limit": "1.2 kB"
   }
 ]

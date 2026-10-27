@@ -17,8 +17,8 @@
 | [`@sch0718/vite-app`](packages/vite-app)                 | PWA 설정 팩토리 `createPwaOptions()`, 개발 서버 CSP 완화 플러그인 `devCsp()`                                                                                                          | 첫 발행 준비 |
 | [`@sch0718/ui-svelte`](packages/ui-svelte)               | 범용 디자인 토큰(`tokens.css`)과 Svelte 5 컴포넌트(Badge, Banner, Chip, Segmented, Sheet, Snackbar, SnackbarHost, Toggle), `applyTheme`                                               | 첫 발행 준비 |
 | [`@sch0718/license-notices`](packages/license-notices)   | 라이선스 고지 파일 생성 `writeNotices()`                                                                                                                                              | 첫 발행 준비 |
-
-예정: `kakao-share`(카카오톡 공유. 랜드마크에서 먼저 만든 뒤 옮김), `motion-kit`(움직이는 그림 생성기의 공통 함수).
+| [`@sch0718/kakao-share`](packages/kakao-share)           | 카카오톡 피드 공유. SDK를 SRI로 확인해 지연 로드하고 키는 앱이 주입                                                                                                                   | 첫 발행 준비 |
+| [`@sch0718/motion-kit`](packages/motion-kit)             | 움직이는 그림(애니메이션 SVG) 생성기의 기반 함수. 빌드 스크립트용                                                                                                                     | 첫 발행 준비 |
 
 ## 넣는 기준
 
