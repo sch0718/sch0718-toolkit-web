@@ -243,7 +243,8 @@ export function writeNotices(opts: {
   bundledDev: (name: string) => boolean; // 번들에 들어가는 devDependencies
 }): { count: number };
 export function flatten(byLicense, keep?): Pkg[];
-export function render(pkgs, readTexts, readUpstream, head: string): string;
+export function render(pkgs, o: { head; readTexts; upstream; readUpstream; upstreamLabel }): string;
+export function noticeHead(appName, licenseUrl, appLicense?): string;
 export function readTexts(dir: string): { file: string; text: string }[];
 export const NOTICE_FILE: RegExp;
 ```
@@ -275,7 +276,7 @@ export const NOTICE_FILE: RegExp;
 | `sync-worker/src/session.ts`                            | `createSessionAuth({ ..., sessionHeader: 'X-Gazua-Session' })`를 만들어 내보내는 얇은 파일. `session.test.ts`는 가즈아 라우터를 거치는 통합 시험으로 남긴다                                                                                           |
 | `sync-worker/src/purge.ts`                              | 세션 정리는 `purgeSessions()`를 부른다                                                                                                                                                                                                                |
 | `sync-worker/src/handler.ts`                            | `preflight(origin, { methods, headers: 'Authorization, Content-Type, X-Gazua-Session, X-Share-Token' })`                                                                                                                                              |
-| `src/lib/sync/config.ts`, `auth.ts`, `firebaseImpl.ts`  | 삭제하고 `@sch0718/firebase-session/client`에서 import한다                                                                                                                                                                                            |
+| `src/lib/sync/config.ts`, `auth.ts`, `firebaseImpl.ts`  | `config.ts`·`auth.ts`는 패키지를 다시 내보내는 얇은 파일로 남기고(`readSyncConfig`의 기본값 `import.meta.env`), `firebaseImpl.ts`는 삭제한다                                                                                                          |
 | `src/lib/sync/api.ts`                                   | `createSessionClient({ sessionHeader: 'X-Gazua-Session', mapStatus })` 위에 profiles·shares 메서드를 만든다. `SyncApi` 타입은 그대로 둔다                                                                                                             |
 | `src/lib/ui/tokens.css`                                 | 가즈아 전용 토큰만 남긴다. `main.ts`에서 Pretendard, `@sch0718/ui-svelte/tokens.css`, 가즈아 `tokens.css` 순서로 불러온다                                                                                                                             |
 | `src/lib/ui/theme.ts`                                   | `applyColorConvention`만 남기고 `applyTheme`은 다시 내보낸다                                                                                                                                                                                          |
