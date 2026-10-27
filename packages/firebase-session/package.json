@@ -40,14 +40,10 @@
     "jose": "^6.2.13"
   },
   "peerDependencies": {
-    "firebase": "^12.0.0 || ^13.0.0",
-    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+    "firebase": "^12.0.0 || ^13.0.0"
   },
   "peerDependenciesMeta": {
     "firebase": {
-      "optional": true
-    },
-    "vite": {
       "optional": true
     }
   },

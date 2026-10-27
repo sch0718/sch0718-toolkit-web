@@ -72,6 +72,7 @@ export default defineConfig({ plugins: [svelte(), firebaseCsp(), firebaseAuthHel
 
 - `firebaseAuthHelper()`: `VITE_FIREBASE_AUTH_DOMAIN`이 앱 도메인이면 빌드 때 `https://<프로젝트>.firebaseapp.com/__/auth/*`를 받아 `dist/__/auth/`에 넣습니다. 서드파티 저장소를 막는 브라우저(iOS Safari, 홈 화면 PWA)에서도 로그인이 되게 하는 Firebase 권장 방법입니다.
 - `firebaseCsp()`: index.html의 meta CSP에 `script-src https://apis.google.com`과 `frame-src https://<authDomain>`을 더합니다. CSP에 `default-src 'self';`와 `script-src 'self'`가 있어야 합니다.
+- `vite`는 peer 의존으로 선언하지 않습니다. `/vite` 선언 파일이 `vite`의 `Plugin` 타입만 쓰므로, 이 진입점을 쓰는 앱에 설치된 vite를 그대로 씁니다. peer로 두면 pnpm이 Worker만 쓰는 workspace 패키지에도 루트의 vite를 연결해 `pnpm licenses list --prod`에 vite·esbuild·rollup이 끌려 들어옵니다.
 - PWA를 쓰면 `AUTH_GLOB_IGNORES`, `AUTH_NAVIGATE_DENYLIST`를 workbox 설정에 넣습니다.
 
 라이선스: [PolyForm Noncommercial 1.0.0](./LICENSE)
