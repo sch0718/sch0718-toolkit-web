@@ -36,7 +36,7 @@
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "26.6.5",
     "eslint": "10.13.0",
-    "firebase": "12.19.0",
+    "firebase": "13.1.0",
     "globals": "17.13.0",
     "jose": "6.2.13",
     "jsdom": "29.1.1",
