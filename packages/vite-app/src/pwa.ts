@@ -5,7 +5,7 @@ type Workbox = NonNullable<VitePWAOptions['workbox']>;
 type RuntimeCaching = NonNullable<Workbox['runtimeCaching']>[number];
 
 /** 앱 셸만 미리 담는다. 글꼴 조각·데이터 파일은 담지 않는다. */
-export const PWA_GLOB_PATTERNS = ['**/*.{html,js,css,svg,png,webmanifest}'];
+export const PWA_GLOB_PATTERNS: readonly string[] = ['**/*.{html,js,css,svg,png,webmanifest}'];
 
 const MANIFEST_DEFAULTS: Partial<ManifestOptions> = {
   lang: 'ko',

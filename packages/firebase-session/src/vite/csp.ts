@@ -3,7 +3,7 @@
 import type { Plugin } from 'vite';
 
 /** Google 로그인 팝업이 쓰는 gapi 스크립트. */
-export const FIREBASE_SCRIPT_SOURCES = ['https://apis.google.com'];
+export const FIREBASE_SCRIPT_SOURCES: readonly string[] = ['https://apis.google.com'];
 
 const DOMAIN_RE = /^[a-z0-9.-]+$/;
 
