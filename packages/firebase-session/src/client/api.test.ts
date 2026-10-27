@@ -174,6 +174,45 @@ describe('createSessionClient', () => {
     expect(r).toEqual({ ok: true, data: null });
   });
 
+  // 성공 응답의 본문을 다 받지 못했거나 JSON이 아니면 성공으로 보지 않는다(예: sessionId 없는 createSession).
+  const send200 = (res: Response) =>
+    client(vi.fn(async () => res)).send('GET', '/x', { auth: 'none' });
+
+  it('2xx 본문을 읽다 스트림이 끊기면 offline', async () => {
+    const broken = new ReadableStream({
+      start: (c) => c.error(new TypeError('network')),
+    });
+    expect(await send200(new Response(broken, { status: 200 }))).toEqual({
+      ok: false,
+      kind: 'offline',
+    });
+  });
+
+  it('2xx 본문이 JSON이 아니면 offline', async () => {
+    expect(await send200(new Response('<html>', { status: 200 }))).toEqual({
+      ok: false,
+      kind: 'offline',
+    });
+    expect(await send200(new Response('', { status: 200 }))).toEqual({
+      ok: false,
+      kind: 'offline',
+    });
+  });
+
+  it('204나 Content-Length: 0인 성공은 본문 없는 성공({})', async () => {
+    expect(await send200(new Response(null, { status: 204 }))).toEqual({ ok: true, data: {} });
+    const empty = new Response('', { status: 200, headers: { 'Content-Length': '0' } });
+    expect(await send200(empty)).toEqual({ ok: true, data: {} });
+  });
+
+  it('실패 응답의 본문이 JSON이 아니면 지금처럼 빈 객체로 매핑한다', async () => {
+    expect(await send200(new Response('<html>', { status: 500 }))).toEqual({
+      ok: false,
+      kind: 'server',
+      status: 500,
+    });
+  });
+
   it("auth 'none'은 토큰 없이 보낸다", async () => {
     const f = vi.fn(async () => reply(200, {}));
     await client(f, creds({ idToken: async () => null })).send('GET', '/public', {

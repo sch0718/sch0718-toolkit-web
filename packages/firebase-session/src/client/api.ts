@@ -8,6 +8,7 @@ export type BaseFail =
    */
   | { ok: false; kind: 'auth'; code: string; session?: string }
   | { ok: false; kind: 'not-allowed' }
+  /** 네트워크 실패, 또는 성공 응답의 본문을 다 받지 못했거나 JSON이 아님(다시 시도하면 된다) */
   | { ok: false; kind: 'offline' }
   /** 서비스 한도·무료 한도 초과(429·503) */
   | { ok: false; kind: 'limit'; code: string }
@@ -86,11 +87,17 @@ async function toResult<T, X extends Fail>(
   res: Response,
   mapStatus: SessionClientOptions<X>['mapStatus'],
 ): Promise<ApiResult<T, BaseFail | X>> {
+  // 204·Content-Length: 0은 읽을 본문이 없다. 성공이면 빈 객체를 넘긴다.
+  const noBody = res.status === 204 || res.headers.get('Content-Length') === '0';
   let raw: unknown = {};
-  try {
-    raw = await res.json();
-  } catch {
-    // 본문이 없거나 JSON이 아니다
+  if (!noBody) {
+    try {
+      raw = await res.json();
+    } catch {
+      // 성공인데 본문을 다 받지 못했거나 JSON이 아니면 성공으로 보지 않는다(예: sessionId 없는 createSession).
+      // offline으로 돌려 부르는 쪽의 재시도에 맡긴다. 실패 응답은 지금처럼 빈 객체로 매핑한다.
+      if (res.ok) return { ok: false, kind: 'offline' };
+    }
   }
   // 성공 본문은 그대로 넘긴다(null 포함)
   if (res.ok) return { ok: true, data: raw as T };
