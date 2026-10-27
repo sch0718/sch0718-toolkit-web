@@ -41,7 +41,9 @@ export function createPwaOptions(o: PwaAppOptions): Partial<VitePWAOptions> {
       globPatterns: [...PWA_GLOB_PATTERNS],
       globIgnores: [...(o.globIgnores ?? [])],
       // 확장자가 있는 주소(데이터 파일·assets 등)는 앱 셸 index.html로 대신 답하지 않는다.
-      navigateFallbackDenylist: [/\.\w+$/, ...(o.navigateFallbackDenylist ?? [])],
+      // Workbox는 이 목록을 pathname + search에 맞추므로 확장자는 '?' 앞의 경로에서만 본다
+      // (/data.json?v=1은 앱 셸로 답하지 않고, /compare/item?next=data.json은 앱 셸로 답한다).
+      navigateFallbackDenylist: [/^[^?]*\.\w+(?:\?.*)?$/, ...(o.navigateFallbackDenylist ?? [])],
       runtimeCaching: [
         {
           // 글꼴 조각은 쓰는 것만 처음 받을 때 담는다.

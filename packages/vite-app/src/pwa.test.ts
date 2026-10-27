@@ -59,6 +59,13 @@ describe('createPwaOptions', () => {
     expect(denied('/compare/g1')).toBe(false);
   });
 
+  // Workbox는 거절 목록을 pathname + search에 맞춘다. 확장자는 경로에서만 본다.
+  it('확장자는 질의 문자열을 빼고 경로에서만 본다', () => {
+    const denied = (p: string) => (wb.navigateFallbackDenylist ?? []).some((re) => re.test(p));
+    expect(denied('/data.json?v=1')).toBe(true);
+    expect(denied('/compare/item?next=data.json')).toBe(false);
+  });
+
   it('같은 출처 글꼴은 <prefix>-fonts에 CacheFirst로 담고, 서비스 규칙은 뒤에 붙는다', () => {
     const rules = (wb.runtimeCaching ?? []) as Rule[];
     expect(rules.map((r) => r.options?.cacheName)).toEqual(['app-fonts', 'app-data']);

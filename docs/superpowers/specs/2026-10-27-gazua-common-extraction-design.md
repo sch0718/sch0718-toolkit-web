@@ -210,7 +210,7 @@ export function applyDevCsp(html: string, sources?: string[]): string;
 export const DEV_LOCAL_PROXY_SOURCES;
 ```
 
-- 공통 기본값은 `registerType: 'autoUpdate'`, `injectRegister: 'script'`(CSP `script-src 'self'`), `skipWaiting`·`clientsClaim`, `globPatterns: ['**/*.{html,js,css,svg,png,webmanifest}']`, 확장자 있는 주소의 fallback 제외(`/\.\w+$/`), 같은 출처 woff2의 CacheFirst다.
+- 공통 기본값은 `registerType: 'autoUpdate'`, `injectRegister: 'script'`(CSP `script-src 'self'`), `skipWaiting`·`clientsClaim`, `globPatterns: ['**/*.{html,js,css,svg,png,webmanifest}']`, 확장자 있는 주소의 fallback 제외(`/^[^?]*\.\w+(?:\?.*)?$/`, 질의 문자열 앞 경로에서만 확장자를 본다), 같은 출처 woff2의 CacheFirst다.
 - 매니페스트 공통값(`lang: 'ko'`, `start_url`·`scope: './'`, `display: 'standalone'`)은 기본으로 넣고, 서비스 값이 덮어쓴다.
 - 가즈아는 `globIgnores: ['help/**', ...AUTH_GLOB_IGNORES]`와 universe·help 캐시 규칙을 넘긴다. 결과 객체는 지금 `pwaOptions`와 같아야 한다(가즈아 `pwa.config.test.ts`가 확인).
 
