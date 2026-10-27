@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release
+
+jobs:
+  release:
+    # npm에서 trusted publisher를 설정하기 전에는 실행하지 않는다(README 「첫 발행」).
+    if: vars.RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Version Packages PR 브랜치와 태그
+      pull-requests: write # Version Packages PR
+      id-token: write # npm trusted publishing(OIDC)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # 발행은 pnpm 11의 trusted publishing(OIDC)으로 한다. npm 토큰을 저장소에 두지 않는다.
+      - uses: changesets/action@v2.1.2
+        with:
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          pr-title: 'chore: Version Packages'
+          commit-message: 'chore: Version Packages'

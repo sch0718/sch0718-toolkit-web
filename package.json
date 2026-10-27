@@ -1,0 +1,43 @@
+{
+  "name": "sch0718-toolkit-web",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.28.5",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:package": "pnpm -r --filter \"./packages/*\" check:package",
+    "size": "size-limit",
+    "compat": "node scripts/compat.mjs",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm check:package && pnpm size",
+    "changeset": "changeset",
+    "version-packages": "changeset version && prettier --write \"packages/*/CHANGELOG.md\"",
+    "release": "pnpm build && pnpm check:package && changeset publish"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@changesets/changelog-github": "1.0.1",
+    "@changesets/cli": "3.0.3",
+    "@eslint/js": "10.0.1",
+    "@size-limit/preset-small-lib": "14.2.0",
+    "@tsconfig/strictest": "2.0.8",
+    "@types/node": "26.6.5",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "publint": "0.3.25",
+    "size-limit": "14.2.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "5.0.4"
+  }
+}
