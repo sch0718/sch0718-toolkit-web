@@ -87,13 +87,13 @@ PR마다 `pnpm changeset`으로 변경 기록을 남깁니다. main에 병합되
 릴리스 워크플로는 저장소 변수 `RELEASE_ENABLED`가 `true`일 때만 돕니다. 아래를 마친 뒤 켭니다.
 
 1. npm 계정과 2FA를 준비합니다. 패키지 scope `@sch0718`은 npm 사용자 이름이 `sch0718`이어야 쓸 수 있습니다. 이름이 다르면 패키지 이름을 바꾸거나 npm 조직을 만듭니다.
-2. main에서 `pnpm version-packages`로 버전을 올린 PR을 병합합니다.
+2. main에서 브랜치를 만들어 `GITHUB_TOKEN=$(gh auth token) pnpm version-packages`로 버전을 올리고, 그 PR을 병합합니다. 변경 기록 생성기(`@changesets/changelog-github`)가 GitHub에서 PR·작성자 정보를 읽으므로 토큰이 필요합니다. CI에서는 워크플로 토큰이 자동으로 들어갑니다.
 3. 로컬에서 `npm login` 후 `pnpm build && pnpm -r --filter "./packages/*" publish`로 첫 버전을 발행합니다.
-4. npmjs.com의 각 패키지 설정에서 Trusted publisher를 추가합니다. 값은 GitHub Actions, 저장소 `sch0718/sch0718-toolkit-web`, 워크플로 `release.yml`입니다. 새 설정은 2일 안에 첫 발행을 해야 합니다.
+4. npmjs.com의 각 패키지 설정에서 Trusted publisher를 추가합니다. 값은 GitHub Actions, 저장소 `sch0718/sch0718-toolkit-web`, 워크플로 `release.yml`입니다. **Allowed actions에서 `npm publish`도 허용합니다.** 2026-09-03 이후 만든 설정은 기본으로 `npm stage publish`만 허용해서, 이것을 켜지 않으면 Changesets가 부르는 `pnpm publish`가 거부됩니다. 새 설정은 2일 안에 첫 발행을 해야 합니다. 출처: [npm Trusted publishing](https://docs.npmjs.com/trusted-publishers)(2026-10-27 확인)
 5. 저장소 Settings → Actions → General에서 "Allow GitHub Actions to create and approve pull requests"를 켭니다. Version Packages PR을 열기 위해서입니다.
 6. `gh variable set RELEASE_ENABLED --body true --repo sch0718/sch0718-toolkit-web`
 
-새 패키지를 추가할 때마다 3~4를 반복합니다(trusted publisher는 패키지별 설정입니다).
+새 패키지를 추가할 때도 3~4를 합니다. trusted publisher는 패키지별 설정이고, 패키지가 npm에 있어야 설정할 수 있습니다. 새 패키지가 든 Version Packages PR을 병합하기 전에, 그 PR 브랜치에서 새 패키지만 로컬로 첫 발행하고 trusted publisher를 설정합니다. 그다음 PR을 병합하면 워크플로는 이미 발행된 버전을 건너뜁니다.
 
 ## 라이선스
 
