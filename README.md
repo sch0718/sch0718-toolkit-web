@@ -53,7 +53,8 @@
 - 선언 파일은 TypeScript 5.9로 만듭니다. 쓰는 서비스 중 가장 낮은 버전(가즈아 5.9)에 맞춘 것이고, TS 6(랜드마크)에서도 호환 시험으로 확인합니다. Dependabot은 TypeScript 메이저 버전을 올리지 않습니다(`.github/dependabot.yml`).
 - `@sveltejs/package` 3은 TypeScript 6을 요구해 2.5를 씁니다.
 - jsdom은 29.1.1에 고정합니다. 30은 계산된 `background`를 펼치면서 `var()`를 버려 가즈아에서 옮긴 Toggle 시험 둘이 깨집니다. Dependabot도 jsdom 메이저 버전을 올리지 않습니다.
-- 번들러(tsup·tsdown 등)는 쓰지 않습니다. 패키지가 작고 의존성이 없어서 `tsc` 출력으로 충분합니다. 필요해지면 그때 고릅니다.
+- 패키지 형식 검사에서 `ui-svelte`는 publint만 씁니다. Are the types wrong?이 `.svelte` 파일을 이해하지 못하기 때문입니다. `firebase-session`은 마이그레이션 SQL 진입점(`./migrations/0001_users_sessions.sql`)을 Are the types wrong? 검사에서 뺍니다.
+- 번들러(tsup·tsdown 등)는 쓰지 않습니다. 순수 TS 패키지는 `tsc` 출력으로 충분하고, Svelte 패키지(`ui-svelte`)만 `@sveltejs/package`로 빌드합니다. 필요해지면 그때 고릅니다.
 
 ## 개발
 
@@ -68,7 +69,7 @@ pnpm compat       # 발행할 tarball을 소비자 조건에 설치해 타입 �
 
 `pnpm ci`는 pnpm 11의 내장 명령(깨끗하게 다시 설치)이라서, 검사 스크립트 이름은 `verify`입니다.
 
-**호환 시험(`fixtures/`).** `scripts/compat.mjs`가 패키지를 `pnpm pack`으로 묶습니다. 그다음 저장소 밖 임시 폴더에 아래 소비자 조건을 만들어 설치하고 `tsc`로 검사합니다. 패키지를 추가하면 그 패키지를 쓰는 서비스의 fixture에 import를 추가합니다. fixture에 `check` 스크립트가 있으면 `tsc` 대신 그것을 실행합니다(가즈아 fixture는 `svelte-check`도 돌립니다). 가즈아 fixture는 `vite-app` 사용 코드만 `pwa.ts`로 떼어 `skipLibCheck: true`로 따로 검사합니다. vite-plugin-pwa·workbox의 선언 파일이 서드파티 쪽 이유로 검사를 통과하지 못하기 때문이고(가즈아도 `skipLibCheck`를 켭니다), 나머지 패키지는 `index.ts`에서 선언 파일까지 검사합니다.
+**호환 시험(`fixtures/`).** `scripts/compat.mjs`가 패키지를 `pnpm pack`으로 묶습니다. 그다음 저장소 밖 임시 폴더에 아래 소비자 조건을 만들어 설치하고 `tsc`로 검사합니다. 패키지를 추가하면 그 패키지를 쓰는 서비스의 fixture에 import를 추가합니다. fixture에 `check` 스크립트가 있으면 `tsc` 대신 그것을 실행합니다(가즈아 fixture는 `svelte-check`도 돌립니다). 가즈아 fixture는 `vite-app` 사용 코드와 그것이 쓰는 `firebase-session/vite`의 PWA 상수만 `pwa.ts`로 떼어 `skipLibCheck: true`로 따로 검사합니다. vite-plugin-pwa·workbox의 선언 파일이 서드파티 쪽 이유로 검사를 통과하지 못하기 때문입니다(가즈아도 `skipLibCheck`를 켭니다). `firebase-session/vite`의 선언 파일을 포함한 나머지는 `index.ts`에서 선언 파일까지 검사합니다.
 
 | fixture     | 조건                                      | 대표 서비스 |
 | ----------- | ----------------------------------------- | ----------- |
