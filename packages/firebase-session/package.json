@@ -16,6 +16,10 @@
       "types": "./dist/worker/index.d.ts",
       "default": "./dist/worker/index.js"
     },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
     "./migrations/0001_users_sessions.sql": "./migrations/0001_users_sessions.sql",
     "./package.json": "./package.json"
   },
@@ -30,6 +34,14 @@
   },
   "dependencies": {
     "jose": "^6.2.13"
+  },
+  "peerDependencies": {
+    "firebase": "^12.0.0 || ^13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "firebase": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
