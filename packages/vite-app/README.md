@@ -6,6 +6,7 @@
 
 ```ts
 // vite.config.ts
+import { AUTH_GLOB_IGNORES, AUTH_NAVIGATE_DENYLIST } from '@sch0718/firebase-session/vite';
 import { createPwaOptions } from '@sch0718/vite-app';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -23,8 +24,8 @@ const pwaOptions = createPwaOptions({
     ],
   },
   cachePrefix: 'gazua',
-  globIgnores: ['help/**', '__/**'],
-  navigateFallbackDenylist: [/^\/__\//],
+  globIgnores: ['help/**', ...AUTH_GLOB_IGNORES],
+  navigateFallbackDenylist: AUTH_NAVIGATE_DENYLIST,
   runtimeCaching: [
     {
       urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.endsWith('/universe.json'),

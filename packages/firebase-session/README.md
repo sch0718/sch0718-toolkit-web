@@ -40,7 +40,7 @@ const sessions = createSessionAuth({
 
 엔드포인트(`SESSION_PATHS`)는 서비스 라우터가 연결합니다: `POST /v1/session`(create), `DELETE /v1/session`(revoke current), `GET /v1/sessions`(list), `DELETE /v1/sessions?others=1`, `DELETE /v1/sessions/:id`. 실패는 `HttpError`(401·403·404)로, 인증서를 받지 못하면 `CertsUnavailableError`로 던집니다(503으로 바꾸세요).
 
-**스키마.** `migrations/0001_users_sessions.sql`을 서비스의 `migrations/`에 복사해 적용합니다. 패키지가 스키마를 바꾸면 새 번호의 파일을 더하고 변경 기록에 적습니다. 오래된 세션은 Cron에서 `purgeSessions(db, now)`로 지웁니다.
+**스키마.** 패키지의 `migrations/0001_users_sessions.sql`을 서비스의 `migrations/`에 복사해 적용합니다. 파일 번호는 서비스가 자기 마이그레이션 순서에 맞춰 정합니다. 서비스 마이그레이션 가운데 맨 앞에 두거나, 적어도 `users(id)`를 참조하는 테이블보다 앞에 둡니다. 앞으로 패키지 스키마가 바뀌면 `firebase-session-NNNN_*.sql` 이름의 새 파일로 내보내고 변경 기록에 적습니다. 서비스는 그 파일도 같은 방식으로 복사해 번호를 붙입니다. 오래된 세션은 Cron에서 `purgeSessions(db, now)`로 지웁니다.
 
 ## 브라우저
 
@@ -52,13 +52,17 @@ import {
 } from '@sch0718/firebase-session/client';
 
 const config = readSyncConfig(import.meta.env); // 하나라도 비면 null
-const auth = firebaseAuth(config.firebase);
-const api = createSessionClient({
-  baseUrl: config.apiUrl,
-  credentials: { idToken: (f) => auth.idToken(f), sessionId: async () => stored },
-  sessionHeader: 'X-Repass-Session',
-});
+if (config) {
+  const auth = firebaseAuth(config.firebase);
+  const api = createSessionClient({
+    baseUrl: config.apiUrl,
+    credentials: { idToken: (f) => auth.idToken(f), sessionId: async () => stored },
+    sessionHeader: 'X-Repass-Session',
+  });
+}
 ```
+
+환경 변수 이름은 정해져 있습니다. `readSyncConfig`는 `VITE_SYNC_API_URL`과 `VITE_FIREBASE_*`(`API_KEY`·`AUTH_DOMAIN`·`PROJECT_ID`·`APP_ID`)를 읽고, Vite 플러그인은 `VITE_FIREBASE_AUTH_DOMAIN`과 `VITE_FIREBASE_PROJECT_ID`를 읽습니다. 서비스는 이 이름을 그대로 씁니다.
 
 `api.send()` 위에 서비스 API를 만듭니다. 서비스 고유 상태(예: 409)는 `mapStatus`로 바꿉니다. Firebase SDK는 로그인할 때만 받는 별도 청크(`firebaseImpl-*.js`)가 됩니다.
 

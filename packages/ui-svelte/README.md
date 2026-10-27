@@ -6,6 +6,8 @@ Svelte 5 서비스가 함께 쓰는 디자인 토큰 CSS와 컴포넌트입니�
 
 글꼴 → `@sch0718/ui-svelte/tokens.css` → 서비스 토큰 순서로 불러옵니다. 토큰 CSS는 `--font`에 글꼴 이름만 두고 글꼴 파일은 불러오지 않습니다. 글꼴 로딩은 서비스가 합니다.
 
+`tokens.css`에는 토큰만이 아니라 전역 기본 스타일도 들어 있습니다. 리셋, 버튼·입력 요소 리셋, `:focus-visible` 외곽선, `.num`, `.sr-only`, 움직임 줄이기(`prefers-reduced-motion`)입니다.
+
 ```ts
 // main.ts
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
