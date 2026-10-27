@@ -3,6 +3,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import {
   browserLocalPersistence,
   browserPopupRedirectResolver,
+  getAuth,
   getRedirectResult,
   GoogleAuthProvider,
   indexedDBLocalPersistence,
@@ -38,10 +39,18 @@ export function getAuthFor(cfg: FirebaseConfig): Auth {
   const key = JSON.stringify([cfg.projectId, cfg.apiKey]);
   const cached = instances.get(key);
   if (cached) return cached;
-  const auth = initializeAuth(appFor(cfg), {
-    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-    popupRedirectResolver: browserPopupRedirectResolver,
-  });
+  const app = appFor(cfg);
+  let auth: Auth;
+  try {
+    auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch (e) {
+    // 소비 앱이 이 앱에 getAuth/initializeAuth를 이미 불렀다. 그 Auth(소비 앱의 저장 방식·resolver)를 쓴다.
+    if ((e as { code?: unknown } | null)?.code !== 'auth/already-initialized') throw e;
+    auth = getAuth(app);
+  }
   instances.set(key, auth);
   return auth;
 }

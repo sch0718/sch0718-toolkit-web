@@ -6,6 +6,7 @@ const sdk = vi.hoisted(() => ({
   getApps: vi.fn(),
   initializeApp: vi.fn(),
   initializeAuth: vi.fn(),
+  getAuth: vi.fn(),
 }));
 
 vi.mock('firebase/app', () => ({
@@ -15,6 +16,7 @@ vi.mock('firebase/app', () => ({
 
 vi.mock('firebase/auth', () => ({
   initializeAuth: sdk.initializeAuth,
+  getAuth: sdk.getAuth,
   indexedDBLocalPersistence: { name: 'indexedDB' },
   browserLocalPersistence: { name: 'local' },
   browserPopupRedirectResolver: { name: 'resolver' },
@@ -50,6 +52,7 @@ beforeEach(() => {
     app(name, options),
   );
   sdk.initializeAuth.mockImplementation((a: unknown) => ({ app: a }));
+  sdk.getAuth.mockImplementation((a: unknown) => ({ app: a, existing: true }));
 });
 
 describe('getAuthFor', () => {
@@ -95,6 +98,32 @@ describe('getAuthFor', () => {
     sdk.getApps.mockReturnValue([app('[DEFAULT]', cfg)]);
     expect(getAuthFor({ ...cfg })).toBe(first);
     expect(sdk.initializeAuth).toHaveBeenCalledTimes(1);
+  });
+
+  // 소비 앱이 그 앱에 getAuth/initializeAuth를 이미 불렀으면 initializeAuth가 던진다. 그 Auth를 쓴다.
+  it('이미 Auth가 초기화된 앱이면 getAuth(app)으로 그 Auth를 쓰고 캐시한다', async () => {
+    const same = app('[DEFAULT]', cfg);
+    sdk.getApps.mockReturnValue([same]);
+    sdk.initializeAuth.mockImplementation(() => {
+      throw Object.assign(new Error('already'), { code: 'auth/already-initialized' });
+    });
+    const { getAuthFor } = await load();
+    const auth = getAuthFor(cfg);
+    expect(sdk.getAuth).toHaveBeenCalledWith(same);
+    expect(auth).toBe(sdk.getAuth.mock.results[0]?.value);
+    expect(getAuthFor(cfg)).toBe(auth);
+    expect(sdk.initializeAuth).toHaveBeenCalledTimes(1);
+    expect(sdk.getAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it('initializeAuth의 다른 오류는 그대로 던진다', async () => {
+    const boom = Object.assign(new Error('boom'), { code: 'auth/invalid-api-key' });
+    sdk.initializeAuth.mockImplementation(() => {
+      throw boom;
+    });
+    const { getAuthFor } = await load();
+    expect(() => getAuthFor(cfg)).toThrow(boom);
+    expect(sdk.getAuth).not.toHaveBeenCalled();
   });
 
   it('다른 cfg에는 앞서 만든 Auth를 돌려주지 않는다', async () => {
