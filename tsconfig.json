@@ -4,5 +4,12 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src", "vitest.config.ts", "eslint.config.mjs", "scripts"]
+  "include": [
+    "packages/*/src",
+    "packages/*/test",
+    "vitest.config.ts",
+    "eslint.config.mjs",
+    "scripts"
+  ],
+  "exclude": ["packages/ui-svelte"]
 }

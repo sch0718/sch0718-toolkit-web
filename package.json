@@ -18,7 +18,8 @@
     "check:package": "pnpm -r --filter \"./packages/*\" check:package",
     "size": "size-limit",
     "compat": "node scripts/compat.mjs",
-    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm check:package && pnpm size",
+    "check:svelte": "pnpm --filter @sch0718/ui-svelte check",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm check:svelte && pnpm test && pnpm build && pnpm check:package && pnpm size",
     "changeset": "changeset",
     "version-packages": "changeset version && prettier --write \"packages/*/CHANGELOG.md\"",
     "release": "pnpm build && pnpm check:package && changeset publish"
@@ -29,15 +30,27 @@
     "@changesets/cli": "3.0.3",
     "@eslint/js": "10.0.1",
     "@size-limit/preset-small-lib": "14.3.0",
+    "@sveltejs/package": "2.5.8",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@testing-library/svelte": "5.4.2",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "26.6.5",
     "eslint": "10.13.0",
+    "firebase": "12.19.0",
     "globals": "17.13.0",
+    "jose": "6.2.13",
+    "jsdom": "29.1.1",
     "prettier": "3.9.10",
     "publint": "0.3.25",
     "size-limit": "14.3.0",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.7",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.0",
-    "vitest": "5.0.5"
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.0.5",
+    "workbox-build": "7.4.1",
+    "workbox-window": "7.4.1"
   }
 }

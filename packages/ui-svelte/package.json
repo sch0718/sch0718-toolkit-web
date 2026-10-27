@@ -1,0 +1,40 @@
+{
+  "name": "@sch0718/ui-svelte",
+  "version": "0.0.0",
+  "description": "Svelte 5 공용 디자인 토큰과 컴포넌트(시트, 스낵바, 세그먼트, 토글 등). 라이트·다크 테마.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "신춘호 (https://github.com/sch0718)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sch0718/sch0718-toolkit-web.git",
+    "directory": "packages/ui-svelte"
+  },
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./tokens.css": "./dist/tokens.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && svelte-package -i src/lib -o dist && cp ../../LICENSE LICENSE",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check:package": "publint --strict"
+  },
+  "peerDependencies": {
+    "svelte": "^5.57.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
