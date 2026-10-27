@@ -79,7 +79,7 @@ PR마다 `pnpm changeset`으로 변경 기록을 남깁니다. main에 병합되
 
 - 발행은 npm **trusted publishing**(GitHub Actions OIDC)으로 합니다. npm 토큰을 저장소에 두지 않습니다. 공개 저장소에서 발행하면 provenance(출처 증명)가 붙습니다.
 - 이미 발행한 버전은 덮어쓰지 않습니다. 문제가 있으면 고친 버전을 새로 내고 `npm deprecate`로 표시합니다.
-- **미리보기:** `pnpm changeset version --snapshot <이름>`, `pnpm build && pnpm check:package`, `pnpm changeset publish --tag <이름>` 순서로 실행합니다. 빌드를 빼면 이전 `dist`가 발행됩니다. `latest`가 아닌 태그로 발행되며 이 변경은 main에 커밋하지 않습니다.
+- **미리보기:** `GITHUB_TOKEN=$(gh auth token) pnpm changeset version --snapshot <이름>`, `pnpm build && pnpm check:package`, `pnpm changeset publish --tag <이름>` 순서로 실행합니다. 빌드를 빼면 이전 `dist`가 발행됩니다. `latest`가 아닌 태그로 발행되며 이 변경은 main에 커밋하지 않습니다.
 - 각 서비스는 정확한 버전으로 고정하고, Dependabot 갱신 PR이 서비스 CI(크기 검사 포함)를 통과하면 병합합니다.
 
 ### 첫 발행 (저장소 소유자가 직접)
