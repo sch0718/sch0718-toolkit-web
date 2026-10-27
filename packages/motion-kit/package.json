@@ -1,0 +1,35 @@
+{
+  "name": "@sch0718/motion-kit",
+  "version": "0.0.0",
+  "description": "README·도움말의 움직이는 그림(CSS 애니메이션 SVG)을 만드는 빌드 스크립트용 기반 함수. 글자 폭 근사, 장면 지연, 움직임 CSS, SVG 문서 틀.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "신춘호 (https://github.com/sch0718)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sch0718/sch0718-toolkit-web.git",
+    "directory": "packages/motion-kit"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp ../../LICENSE LICENSE",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
