@@ -1,0 +1,32 @@
+{
+  "name": "@sch0718/seen-store",
+  "version": "0.0.0",
+  "description": "이미 본 항목(처음 안내 등)의 식별자를 localStorage에 기록하는 작은 저장소. 저장소가 막히면 메모리로 동작한다.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "신춘호 (https://github.com/sch0718)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sch0718/sch0718-toolkit-web.git",
+    "directory": "packages/seen-store"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp ../../LICENSE LICENSE",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

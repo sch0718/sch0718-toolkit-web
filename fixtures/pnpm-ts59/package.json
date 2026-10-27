@@ -1,0 +1,9 @@
+{
+  "name": "compat-pnpm-ts59",
+  "private": true,
+  "description": "가즈아 조건: pnpm 10, TypeScript 5.9",
+  "packageManager": "pnpm@10.34.7",
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

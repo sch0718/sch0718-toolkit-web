@@ -1,0 +1,8 @@
+[
+  {
+    "name": "@sch0718/seen-store",
+    "path": "packages/seen-store/dist/index.js",
+    "import": "{ createSeenStore }",
+    "limit": "600 B"
+  }
+]

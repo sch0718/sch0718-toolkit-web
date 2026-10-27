@@ -1,0 +1,9 @@
+{
+  "name": "compat-yarn1-ts6",
+  "private": true,
+  "description": "랜드마크 조건: Yarn 1, TypeScript 6",
+  "packageManager": "yarn@1.22.22",
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}
