@@ -7,6 +7,9 @@ type Coord = number | string;
 export const esc = (s: unknown): string =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+/** 큰따옴표로 감싼 속성값용. `esc`에 더해 `"`도 바꾼다. */
+const escAttr = (s: unknown): string => esc(s).replace(/"/g, '&quot;');
+
 /** 장면 길이 `sceneLength`초를 받아, 장면 `scene`(0부터)이 시작하고 `offset`초 뒤에 움직이게 하는 style 값을 만든다. */
 export const at =
   (sceneLength: number) =>
@@ -22,15 +25,15 @@ export interface TextOptions {
   style?: string;
 }
 
-/** `<text>` 한 줄. `value`는 이스케이프한다. */
+/** `<text>` 한 줄. `value`와 속성값은 이스케이프한다. */
 export function text(
   x: Coord,
   y: Coord,
   value: unknown,
   { size = 14, weight = 400, fill, anchor = 'start', cls = '', style = '' }: TextOptions,
 ): string {
-  const extra = `${cls ? ` class="${cls}"` : ''}${style ? ` style="${style}"` : ''}`;
-  return `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${extra}>${esc(value)}</text>`;
+  const extra = `${cls ? ` class="${escAttr(cls)}"` : ''}${style ? ` style="${escAttr(style)}"` : ''}`;
+  return `<text x="${escAttr(x)}" y="${escAttr(y)}" font-size="${size}" font-weight="${weight}" fill="${escAttr(fill)}" text-anchor="${escAttr(anchor)}"${extra}>${esc(value)}</text>`;
 }
 
 /** 글자 폭 근사(한글 1em, 이모지 1.2em, 그 밖 0.6em, 이모지 표시 선택자 0). */

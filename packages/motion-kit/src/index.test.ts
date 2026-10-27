@@ -22,6 +22,12 @@ describe('text', () => {
     );
   });
 
+  it('속성값의 따옴표·&·<를 바꿔 SVG가 깨지지 않게 한다', () => {
+    expect(text(0, 0, 'x', { fill: 'a&b', style: 'font-family:"Noto Sans"<' })).toBe(
+      '<text x="0" y="0" font-size="14" font-weight="400" fill="a&amp;b" text-anchor="start" style="font-family:&quot;Noto Sans&quot;&lt;">x</text>',
+    );
+  });
+
   it('class·style이 있을 때만 붙는다', () => {
     expect(
       text(0, 0, 'x', {
