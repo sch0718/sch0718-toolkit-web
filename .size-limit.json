@@ -4,5 +4,11 @@
     "path": "packages/seen-store/dist/index.js",
     "import": "{ createSeenStore }",
     "limit": "600 B"
+  },
+  {
+    "name": "@sch0718/kakao-share",
+    "path": "packages/kakao-share/dist/index.js",
+    "import": "*",
+    "limit": "1.2 kB"
   }
 ]
