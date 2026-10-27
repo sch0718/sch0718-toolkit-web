@@ -9,6 +9,9 @@ updates:
       # TS 7은 typescript-eslint도 아직 지원하지 않는다(2026-10-27).
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
+      # jsdom 30은 계산된 background를 펼치면서 var()를 버려 Toggle 시험 둘이 깨진다. 29에 고정한다(2026-10-27).
+      - dependency-name: jsdom
+        update-types: ['version-update:semver-major']
     groups:
       dev-tools:
         patterns: ['*']

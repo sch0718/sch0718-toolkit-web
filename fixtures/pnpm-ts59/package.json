@@ -1,9 +1,20 @@
 {
   "name": "compat-pnpm-ts59",
   "private": true,
-  "description": "가즈아 조건: pnpm 10, TypeScript 5.9",
+  "type": "module",
+  "description": "가즈아 조건: pnpm 10, TypeScript 5.9, Svelte 5, Vite 6, Firebase 12",
   "packageManager": "pnpm@10.34.7",
+  "scripts": {
+    "check": "tsc -p . && tsc -p tsconfig.pwa.json && svelte-check --tsconfig ./tsconfig.svelte.json"
+  },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.6",
+    "vite": "6.4.4",
+    "vite-plugin-pwa": "2.0.0",
+    "workbox-build": "7.4.1",
+    "workbox-window": "7.4.1",
+    "firebase": "12.19.0"
   }
 }

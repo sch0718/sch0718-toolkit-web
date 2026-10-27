@@ -4,5 +4,25 @@
     "path": "packages/seen-store/dist/index.js",
     "import": "{ createSeenStore }",
     "limit": "600 B"
+  },
+  {
+    "name": "@sch0718/firebase-session/client",
+    "path": "packages/firebase-session/dist/client/index.js",
+    "import": "{ createSessionClient, firebaseAuth, readSyncConfig }",
+    "ignore": ["firebase"],
+    "limit": "2.2 kB"
+  },
+  {
+    "name": "@sch0718/firebase-session/worker",
+    "path": "packages/firebase-session/dist/worker/index.js",
+    "import": "{ createSessionAuth, googleCerts, matchOrigin, preflight, json, readJson }",
+    "ignore": ["jose"],
+    "limit": "3 kB"
+  },
+  {
+    "name": "@sch0718/vite-app",
+    "path": "packages/vite-app/dist/index.js",
+    "import": "{ createPwaOptions, devCsp }",
+    "limit": "700 B"
   }
 ]

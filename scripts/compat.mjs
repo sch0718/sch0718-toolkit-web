@@ -53,7 +53,9 @@ for (const fixture of fixtures) {
     manager === 'yarn' ? ['yarn', 'install', '--no-lockfile'] : [manager, 'install'],
     dir,
   );
-  run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
+  // fixture에 check 스크립트가 있으면(예: tsc + svelte-check) 그것을, 없으면 tsc만 돌린다.
+  if (pkg.scripts?.check) run('corepack', [manager, 'run', 'check'], dir);
+  else run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
 }
 rmSync(base, { recursive: true, force: true });
 console.log(`\n호환 시험 통과: ${fixtures.join(', ')}`);
