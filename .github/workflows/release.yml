@@ -38,5 +38,5 @@ jobs:
       - if: steps.changesets.outputs.published == 'true'
         run: node scripts/smoke-installed.mjs
         env:
-          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED: ${{ steps.changesets.outputs['published-packages'] }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

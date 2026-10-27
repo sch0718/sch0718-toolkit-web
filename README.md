@@ -97,6 +97,21 @@ Yarn 1과 pnpm 모두 `.npmrc`의 `${변수}`를 읽습니다. `@sch0718/*`만 G
 - classic 토큰은 범위를 좁힐 수 없고 만료되면 모든 서비스의 설치가 한꺼번에 실패합니다. 만료일을 달력에 적어 두고, 바꿀 때 위 세 곳을 함께 갱신합니다.
 - 토큰 값은 저장소·로그·`.npmrc`에 적지 않습니다.
 
+서비스 워크플로에서 `permissions`를 지정했다면 설치하는 job에 `packages: read`를 꼭 넣습니다. 빠지면 접근 권한을 줬어도 토큰의 packages 권한이 없어 설치가 실패합니다.
+
+```yaml
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      # …
+      - run: yarn install --frozen-lockfile
+        env:
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
 **3. 설치합니다.** `yarn add @sch0718/seen-store@0.1.0` 또는 `pnpm add @sch0718/seen-store@0.1.0`. 정확한 버전으로 고정하고 lockfile을 커밋합니다.
 
 ## 릴리스

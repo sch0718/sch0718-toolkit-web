@@ -1,5 +1,5 @@
 // 발행 직후, 레지스트리에서 그 버전을 설치해 import되는지 확인한다(릴리스 워크플로에서 실행).
-// PUBLISHED: changesets/action의 publishedPackages 출력. 예: [{"name":"@sch0718/seen-store","version":"0.1.0"}]
+// PUBLISHED: changesets/action의 published-packages 출력. 예: [{"name":"@sch0718/seen-store","version":"0.1.0"}]
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
