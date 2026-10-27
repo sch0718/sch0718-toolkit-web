@@ -139,6 +139,41 @@ describe('createSessionClient', () => {
     expect(await c.send('PUT', '/p')).toEqual({ ok: false, kind: 'conflict', revision: 7 });
   });
 
+  // JSON이지만 객체가 아닌 실패 본문(null·수·문자열·배열)은 빈 객체로 보고 실패 결과를 돌려준다.
+  it.each([[null], [42], ['oops'], [['error']]])(
+    '500 본문 %j → server 실패(reject하지 않는다)',
+    async (body) => {
+      const r = await client(vi.fn(async () => reply(500, body))).send('GET', '/x', {
+        auth: 'none',
+      });
+      expect(r).toEqual({ ok: false, kind: 'server', status: 500 });
+    },
+  );
+
+  it.each([[null], [['revision']]])('409 본문 %j → mapStatus는 빈 객체를 받는다', async (body) => {
+    const mapStatus = vi.fn(() => undefined);
+    const c = createSessionClient({
+      baseUrl: BASE,
+      credentials: creds(),
+      sessionHeader: 'X-Test-Session',
+      fetch: vi.fn(async () => reply(409, body)),
+      mapStatus,
+    });
+    expect(await c.send('PUT', '/p', { auth: 'none' })).toEqual({
+      ok: false,
+      kind: 'server',
+      status: 409,
+    });
+    expect(mapStatus).toHaveBeenCalledWith(409, {});
+  });
+
+  it('성공 본문은 null이어도 그대로 넘긴다', async () => {
+    const r = await client(vi.fn(async () => reply(200, null))).send('GET', '/x', {
+      auth: 'none',
+    });
+    expect(r).toEqual({ ok: true, data: null });
+  });
+
   it("auth 'none'은 토큰 없이 보낸다", async () => {
     const f = vi.fn(async () => reply(200, {}));
     await client(f, creds({ idToken: async () => null })).send('GET', '/public', {

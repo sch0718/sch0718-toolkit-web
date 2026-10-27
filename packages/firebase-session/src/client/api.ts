@@ -86,13 +86,19 @@ async function toResult<T, X extends Fail>(
   res: Response,
   mapStatus: SessionClientOptions<X>['mapStatus'],
 ): Promise<ApiResult<T, BaseFail | X>> {
-  let body: Record<string, unknown> = {};
+  let raw: unknown = {};
   try {
-    body = (await res.json()) as Record<string, unknown>;
+    raw = await res.json();
   } catch {
     // 본문이 없거나 JSON이 아니다
   }
-  if (res.ok) return { ok: true, data: body as T };
+  // 성공 본문은 그대로 넘긴다(null 포함)
+  if (res.ok) return { ok: true, data: raw as T };
+  // 실패 본문이 JSON이어도 객체가 아니면(null·수·문자열·배열) 빈 객체로 본다
+  const body: Record<string, unknown> =
+    typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
   const mapped = mapStatus?.(res.status, body);
   if (mapped) return mapped;
   const code = typeof body['error'] === 'string' ? body['error'] : '';
