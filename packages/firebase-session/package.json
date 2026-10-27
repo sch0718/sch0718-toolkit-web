@@ -20,6 +20,10 @@
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "default": "./dist/vite/index.js"
+    },
     "./migrations/0001_users_sessions.sql": "./migrations/0001_users_sessions.sql",
     "./package.json": "./package.json"
   },
@@ -36,10 +40,14 @@
     "jose": "^6.2.13"
   },
   "peerDependencies": {
-    "firebase": "^12.0.0 || ^13.0.0"
+    "firebase": "^12.0.0 || ^13.0.0",
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "peerDependenciesMeta": {
     "firebase": {
+      "optional": true
+    },
+    "vite": {
       "optional": true
     }
   },
