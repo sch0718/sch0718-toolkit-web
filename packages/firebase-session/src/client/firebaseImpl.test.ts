@@ -1,0 +1,108 @@
+// 실제 SDK 대신 firebase/app·firebase/auth를 가짜로 바꿔 앱 고르기만 본다.
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FirebaseConfig } from './config.js';
+
+const sdk = vi.hoisted(() => ({
+  getApps: vi.fn(),
+  initializeApp: vi.fn(),
+  initializeAuth: vi.fn(),
+}));
+
+vi.mock('firebase/app', () => ({
+  getApps: sdk.getApps,
+  initializeApp: sdk.initializeApp,
+}));
+
+vi.mock('firebase/auth', () => ({
+  initializeAuth: sdk.initializeAuth,
+  indexedDBLocalPersistence: { name: 'indexedDB' },
+  browserLocalPersistence: { name: 'local' },
+  browserPopupRedirectResolver: { name: 'resolver' },
+  getRedirectResult: vi.fn(),
+  GoogleAuthProvider: vi.fn(),
+  signInWithPopup: vi.fn(),
+  signInWithRedirect: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+const cfg: FirebaseConfig = {
+  apiKey: 'key-a',
+  authDomain: 'a.firebaseapp.com',
+  projectId: 'project-a',
+  appId: 'app-a',
+};
+const app = (name: string, options: Partial<FirebaseConfig>) => ({ name, options });
+const AUTH_OPTIONS = {
+  persistence: [{ name: 'indexedDB' }, { name: 'local' }],
+  popupRedirectResolver: { name: 'resolver' },
+};
+
+// 모듈 안의 Auth 캐시를 시험마다 비운다
+async function load() {
+  vi.resetModules();
+  return import('./firebaseImpl.js');
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  sdk.getApps.mockReturnValue([]);
+  sdk.initializeApp.mockImplementation((options: FirebaseConfig, name = '[DEFAULT]') =>
+    app(name, options),
+  );
+  sdk.initializeAuth.mockImplementation((a: unknown) => ({ app: a }));
+});
+
+describe('getAuthFor', () => {
+  // 가즈아처럼 앱이 없으면 기본 앱([DEFAULT])을 만든다. Auth 저장 키에 앱 이름이 들어가므로 바뀌면 로그아웃된다.
+  it('앱이 없으면 cfg만으로 기본 앱을 만든다', async () => {
+    const { getAuthFor } = await load();
+    const auth = getAuthFor(cfg) as unknown as { app: { name: string } };
+    expect(sdk.initializeApp).toHaveBeenCalledTimes(1);
+    expect(sdk.initializeApp.mock.calls[0]).toEqual([cfg]);
+    expect(auth.app.name).toBe('[DEFAULT]');
+    expect(sdk.initializeAuth).toHaveBeenCalledWith(auth.app, AUTH_OPTIONS);
+  });
+
+  it('projectId와 apiKey가 같은 앱이 있으면 그 앱을 쓴다', async () => {
+    const other = app('[DEFAULT]', { projectId: 'project-b', apiKey: 'key-b' });
+    const same = app('mine', { projectId: 'project-a', apiKey: 'key-a' });
+    sdk.getApps.mockReturnValue([other, same]);
+    const { getAuthFor } = await load();
+    getAuthFor(cfg);
+    expect(sdk.initializeApp).not.toHaveBeenCalled();
+    expect(sdk.initializeAuth).toHaveBeenCalledWith(same, AUTH_OPTIONS);
+  });
+
+  it('다른 프로젝트의 앱만 있으면 이름 붙인 앱을 따로 만든다', async () => {
+    const other = app('[DEFAULT]', { projectId: 'project-b', apiKey: 'key-b' });
+    sdk.getApps.mockReturnValue([other]);
+    const { getAuthFor } = await load();
+    getAuthFor(cfg);
+    expect(sdk.initializeApp).toHaveBeenCalledWith(cfg, '@sch0718/firebase-session');
+    expect(sdk.initializeAuth).not.toHaveBeenCalledWith(other, expect.anything());
+  });
+
+  it('같은 프로젝트의 apiKey가 다르면 같은 앱으로 보지 않는다', async () => {
+    sdk.getApps.mockReturnValue([app('[DEFAULT]', { projectId: 'project-a', apiKey: 'key-x' })]);
+    const { getAuthFor } = await load();
+    getAuthFor(cfg);
+    expect(sdk.initializeApp).toHaveBeenCalledWith(cfg, '@sch0718/firebase-session');
+  });
+
+  it('같은 cfg로 두 번 부르면 Auth를 한 번만 만든다', async () => {
+    const { getAuthFor } = await load();
+    const first = getAuthFor(cfg);
+    sdk.getApps.mockReturnValue([app('[DEFAULT]', cfg)]);
+    expect(getAuthFor({ ...cfg })).toBe(first);
+    expect(sdk.initializeAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it('다른 cfg에는 앞서 만든 Auth를 돌려주지 않는다', async () => {
+    const { getAuthFor } = await load();
+    const first = getAuthFor(cfg);
+    sdk.getApps.mockReturnValue([app('[DEFAULT]', cfg)]);
+    const second = getAuthFor({ ...cfg, projectId: 'project-b', apiKey: 'key-b' });
+    expect(second).not.toBe(first);
+    expect(sdk.initializeAuth).toHaveBeenCalledTimes(2);
+  });
+});
