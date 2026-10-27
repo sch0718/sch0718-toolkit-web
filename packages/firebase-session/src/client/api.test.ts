@@ -98,6 +98,63 @@ describe('createSessionClient', () => {
     });
   });
 
+  // 첫 요청 중에 다른 계정으로 바꿔 로그인했으면 A의 본문을 B의 자격으로 다시 보내면 안 된다.
+  const invalidThenOk = () =>
+    vi
+      .fn()
+      .mockResolvedValueOnce(reply(401, { error: 'invalid-token' }))
+      .mockResolvedValueOnce(reply(200, {}));
+  const sessions = (...ids: string[]) => {
+    const fn = vi.fn<() => Promise<string | null>>();
+    for (const id of ids) fn.mockResolvedValueOnce(id);
+    fn.mockResolvedValue(ids.at(-1) ?? null);
+    return fn;
+  };
+
+  it('다시 보내기 전에 세션이 바뀌었으면 다시 보내지 않고 첫 실패(원래 세션)를 돌려준다', async () => {
+    const f = invalidThenOk();
+    const c = client(f, creds({ sessionId: sessions('A', 'B') }));
+    expect(await c.send('PUT', '/v1/profiles/p', { body: { doc: 'A의 데이터' } })).toEqual({
+      ok: false,
+      kind: 'auth',
+      code: 'invalid-token',
+      session: 'A',
+    });
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('확인한 뒤 다시 보내는 사이에 세션이 바뀌어도 보내지 않는다', async () => {
+    const f = invalidThenOk();
+    const c = client(f, creds({ sessionId: sessions('A', 'A', 'B') }));
+    expect(await c.send('PUT', '/v1/profiles/p', { body: { doc: 'A의 데이터' } })).toEqual({
+      ok: false,
+      kind: 'auth',
+      code: 'invalid-token',
+      session: 'A',
+    });
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('세션이 그대로면 새 토큰과 같은 세션으로 한 번 다시 보낸다', async () => {
+    const f = invalidThenOk();
+    const c = client(f, creds({ sessionId: sessions('A') }));
+    expect(await c.send('PUT', '/v1/profiles/p', { body: {} })).toEqual({ ok: true, data: {} });
+    expect(f).toHaveBeenCalledTimes(2);
+    expect((f.mock.calls[1] as unknown as [string, RequestInit])[1].headers).toMatchObject({
+      Authorization: 'Bearer fresh',
+      'X-Test-Session': 'A',
+    });
+  });
+
+  it("auth 'token'(넘겨받은 토큰 없음)은 지금처럼 새 토큰으로 한 번 다시 보낸다", async () => {
+    const f = invalidThenOk();
+    const sessionId = vi.fn(async () => 'A');
+    const c = client(f, creds({ sessionId }));
+    expect(await c.send('GET', '/x', { auth: 'token' })).toEqual({ ok: true, data: {} });
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(sessionId).not.toHaveBeenCalled();
+  });
+
   it('인증 실패에는 그 요청이 쓴 세션을 실어 준다', async () => {
     const f = vi.fn(async () => reply(401, { error: 'session-revoked' }));
     expect(await client(f).listSessions()).toEqual({

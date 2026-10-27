@@ -149,7 +149,11 @@ export function createSessionClient<X extends Fail = never>(
     opts: SendOptions = {},
   ): Promise<ApiResult<T, BaseFail | X>> {
     const auth = opts.auth ?? 'session';
-    const attempt = async (force: boolean): Promise<ApiResult<T, BaseFail | X>> => {
+    // retryOf: 다시 보낼 때 첫 실패(그 요청이 쓴 세션이 실려 있다). 그 사이 세션이 바뀌었으면 보내지 않고 그대로 돌려준다.
+    const attempt = async (
+      force: boolean,
+      retryOf?: AuthFail & { session: string },
+    ): Promise<ApiResult<T, BaseFail | X>> => {
       const headers: Record<string, string> = { ...opts.headers };
       let used: string | null = null; // 이 요청이 쓴 기기 세션
       if (auth !== 'none') {
@@ -162,6 +166,7 @@ export function createSessionClient<X extends Fail = never>(
         } catch {
           return { ok: false, kind: 'offline' };
         }
+        if (retryOf && s !== retryOf.session) return retryOf;
         if (!token) return { ok: false, kind: 'auth', code: 'missing-token' };
         headers['Authorization'] = `Bearer ${token}`;
         if (auth === 'session') {
@@ -190,9 +195,21 @@ export function createSessionClient<X extends Fail = never>(
     };
     const first = await attempt(false);
     // 만료 직전에 받은 ID 토큰이면 한 번만 새로 받아 다시 보낸다
-    if (isAuthFail(first) && first.code === 'invalid-token' && auth !== 'none' && !opts.token)
-      return attempt(true);
-    return first;
+    if (!isAuthFail(first) || first.code !== 'invalid-token' || auth === 'none' || opts.token)
+      return first;
+    if (auth === 'token') return attempt(true);
+    // 그 사이 다른 계정으로 바꿔 로그인했으면 첫 요청의 본문을 새 계정의 자격으로 보내지 않는다.
+    // 첫 실패에는 그 요청이 쓴 세션(session)이 실려 있다. 다시 보내는 안에서도 한 번 더 맞춰 본다.
+    const used = first.session;
+    if (used === undefined) return first;
+    let now: string | null;
+    try {
+      now = await o.credentials.sessionId();
+    } catch {
+      return first;
+    }
+    if (now !== used) return first;
+    return attempt(true, { ...first, session: used });
   }
 
   const enc = encodeURIComponent;
