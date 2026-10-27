@@ -1,6 +1,6 @@
 {
   "name": "@sch0718/firebase-session",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Firebase Google 로그인 + 이메일 허용 목록 + D1 기기 세션. Worker 검증, 브라우저 클라이언트, Vite 빌드 도우미.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": "신춘호 (https://github.com/sch0718)",

@@ -1,6 +1,6 @@
 {
   "name": "@sch0718/ui-svelte",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Svelte 5 공용 디자인 토큰과 컴포넌트(시트, 스낵바, 세그먼트, 토글 등). 라이트·다크 테마.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": "신춘호 (https://github.com/sch0718)",
