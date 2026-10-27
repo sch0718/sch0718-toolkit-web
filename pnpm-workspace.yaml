@@ -1,2 +1,7 @@
 packages:
   - packages/*
+
+# firebase(시험·타입 검사용 devDependency)가 끌어오는 설치 스크립트. 쓰지 않으므로 실행하지 않는다.
+allowBuilds:
+  '@firebase/util': false
+  protobufjs: false
