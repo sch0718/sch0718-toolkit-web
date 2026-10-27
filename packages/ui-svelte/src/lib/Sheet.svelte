@@ -54,8 +54,27 @@
   // 이런 컨트롤은 focus()가 되지 않아 순환의 끝으로 고르면 포커스가 멈춘다.
   function focusables(): HTMLElement[] {
     return dialogEl
-      ? [...dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.matches(':disabled') && !isHidden(el))
+      ? oneRadioPerGroup(
+          [...dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.matches(':disabled') && !isHidden(el)),
+        )
       : [];
+  }
+
+  const namedRadio = (el: HTMLElement): el is HTMLInputElement =>
+    el instanceof HTMLInputElement && el.type === 'radio' && el.name !== '';
+
+  /**
+   * 브라우저 Tab은 같은 name의 라디오 묶음에서 체크된 것(없으면 DOM 순서로 첫 것) 하나에만 선다.
+   * 나머지를 목록에 두면 순환의 끝을 잘못 골라 포커스가 시트 밖으로 샌다. name 없는 라디오는 하나씩 선다.
+   */
+  function oneRadioPerGroup(els: HTMLElement[]): HTMLElement[] {
+    const stop = new Map<string, HTMLInputElement>();
+    for (const el of els) {
+      if (!namedRadio(el)) continue;
+      const cur = stop.get(el.name);
+      if (!cur || (!cur.checked && el.checked)) stop.set(el.name, el);
+    }
+    return els.filter((el) => !namedRadio(el) || stop.get(el.name) === el);
   }
 
   /** 시트 밖(SnackbarHost)에 떠 있는 스낵바 동작 버튼. 시트가 열려 있는 동안 Tab 순환의 끝에 넣는다. */

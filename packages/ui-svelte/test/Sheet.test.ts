@@ -166,6 +166,56 @@ describe('Sheet', () => {
     expect(document.activeElement).toBe(dialog.querySelector('#legend'));
   });
 
+  // 브라우저 Tab은 같은 name의 라디오 묶음에서 체크된 것(없으면 첫 것) 하나에만 선다.
+  it('treats a native radio group as one Tab stop (the checked radio) when wrapping', async () => {
+    const withRadios = createRawSnippet(() => ({
+      render: () =>
+        `<div><button id="first">첫째</button><input type="radio" name="g" value="a" aria-label="가" checked /><input type="radio" name="g" value="b" aria-label="나" /></div>`,
+    }));
+    setup({ children: withRadios });
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: '닫기' });
+    const checked = screen.getByRole('radio', { name: '가' });
+
+    checked.focus();
+    await fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(checked);
+  });
+
+  it('uses the first radio of a group with nothing checked', async () => {
+    const withRadios = createRawSnippet(() => ({
+      render: () =>
+        `<div><input type="radio" name="g" aria-label="가" /><input type="radio" name="g" aria-label="나" /></div>`,
+    }));
+    setup({ children: withRadios });
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: '닫기' });
+
+    close.focus();
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: '가' }));
+  });
+
+  it('keeps radios without a name as separate Tab stops', async () => {
+    const withRadios = createRawSnippet(() => ({
+      render: () =>
+        `<div><input type="radio" aria-label="이름 없음 1" /><input type="radio" aria-label="이름 없음 2" /></div>`,
+    }));
+    setup({ children: withRadios });
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: '닫기' });
+
+    close.focus();
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: '이름 없음 2' }));
+  });
+
   it('locks body scroll while open and restores it on close and on unmount', async () => {
     document.body.style.overflow = 'auto';
     const { rerender, unmount } = setup();
