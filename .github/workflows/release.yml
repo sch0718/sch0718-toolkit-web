@@ -24,7 +24,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # 발행은 pnpm 11의 trusted publishing(OIDC)으로 한다. npm 토큰을 저장소에 두지 않는다.
-      - uses: changesets/action@v2
+      - uses: changesets/action@v2.1.2
         with:
           version-script: pnpm version-packages
           publish-script: pnpm release
