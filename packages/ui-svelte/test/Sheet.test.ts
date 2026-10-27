@@ -216,6 +216,30 @@ describe('Sheet', () => {
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: '이름 없음 2' }));
   });
 
+  // <details>의 첫 <summary>는 브라우저 Tab이 서는 컨트롤이다.
+  it('includes the first <summary> of a <details> as a Tab stop', async () => {
+    const withDetails = createRawSnippet(() => ({
+      render: () => `<details><summary>더 보기</summary><p>내용</p></details>`,
+    }));
+    setup({ children: withDetails });
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: '닫기' });
+    const summary = dialog.querySelector<HTMLElement>('summary')!;
+
+    // 닫기 다음이 summary이므로 Tab을 막지 않는다(jsdom은 기본 이동을 하지 않아 막혔는지만 본다)
+    close.focus();
+    expect(await fireEvent.keyDown(dialog, { key: 'Tab' })).toBe(true);
+    expect(document.activeElement).toBe(close);
+
+    summary.focus();
+    await fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(summary);
+  });
+
   it('locks body scroll while open and restores it on close and on unmount', async () => {
     document.body.style.overflow = 'auto';
     const { rerender, unmount } = setup();

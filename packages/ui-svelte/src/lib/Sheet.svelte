@@ -31,6 +31,8 @@
     'input:not([disabled]):not([type="hidden"])',
     'select:not([disabled])',
     'textarea:not([disabled])',
+    // <details>의 첫 <summary>는 tabindex 없이도 Tab이 선다.
+    'details > summary:first-of-type',
     '[tabindex]',
   ]
     .map((sel) => `${sel}:not([tabindex="-1"])`)
