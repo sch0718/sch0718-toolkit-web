@@ -21,12 +21,12 @@
 
 ## 3. 패키지 구성
 
-| 패키지                      | 실행 환경                      | 의존                                   | 진입점                                             |
-| --------------------------- | ------------------------------ | -------------------------------------- | -------------------------------------------------- |
-| `@sch0718/firebase-session` | Workers / 브라우저 / Vite 빌드 | `jose`. peer(선택): `firebase`, `vite` | `./worker`, `./client`, `./vite`, `./migrations/*` |
-| `@sch0718/vite-app`         | Vite 빌드                      | peer: `vite`, `vite-plugin-pwa`        | `.`                                                |
-| `@sch0718/ui-svelte`        | 브라우저(Svelte 5)             | peer: `svelte` ^5                      | `.`, `./tokens.css`                                |
-| `@sch0718/license-notices`  | Node                           | 없음                                   | `.`                                                |
+| 패키지                      | 실행 환경                      | 의존                                                                                                | 진입점                                             |
+| --------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `@sch0718/firebase-session` | Workers / 브라우저 / Vite 빌드 | `jose`. peer(선택): `firebase` (`vite`는 타입만 쓰므로 peer로 두지 않는다. 구현 중 결정, 아래 14장) | `./worker`, `./client`, `./vite`, `./migrations/*` |
+| `@sch0718/vite-app`         | Vite 빌드                      | peer: `vite`, `vite-plugin-pwa`                                                                     | `.`                                                |
+| `@sch0718/ui-svelte`        | 브라우저(Svelte 5)             | peer: `svelte` ^5                                                                                   | `.`, `./tokens.css`                                |
+| `@sch0718/license-notices`  | Node                           | 없음                                                                                                | `.`                                                |
 
 - 클라이언트와 Worker는 엔드포인트 경로, 오류 코드, 세션 헤더 전달 방식이라는 약속을 공유한다. 그래서 둘을 한 패키지의 서브경로로 묶어 같은 버전으로 움직이게 한다.
 - 진입점이 서로를 import하지 않게 한다. `./worker`를 쓰는 서비스는 firebase나 vite가 없어도 타입 검사와 빌드가 된다.
@@ -283,7 +283,7 @@ export const NOTICE_FILE: RegExp;
 | `src/lib/ui/components/*`                               | 삭제하고 import 경로를 `@sch0718/ui-svelte`로 바꾼다. 시험은 패키지로 옮긴다                                                                                                                                                                          |
 | `scripts/build-notices.mjs`                             | `writeNotices` 설정만 남긴다. `tests/build-notices.test.mjs`는 가즈아 설정(upstream 매핑, `BUNDLED_DEV`) 시험만 남긴다                                                                                                                                |
 
-- 런타임 의존은 `@sch0718/firebase-session`과 `@sch0718/ui-svelte`, devDependencies는 `@sch0718/vite-app`과 `@sch0718/license-notices`다. sync-worker는 `@sch0718/firebase-session`을 dependencies에 둔다.
+- 가즈아 루트에서는 네 패키지를 모두 devDependencies로 둔다. 정적 SPA라 런타임 코드도 번들에 들어가고, prod 의존으로 두면 peer(svelte, vite)와 그 의존(esbuild·rollup 등)이 `pnpm licenses list --prod`에 끌려 들어온다. 번들되는 `@sch0718/firebase-session`·`@sch0718/ui-svelte`는 고지 스크립트의 `BUNDLED_DEV`에 넣는다. sync-worker는 `@sch0718/firebase-session`을 dependencies에 둔다.
 - 라이선스 고지: `@sch0718/*` 패키지도 `pnpm licenses list --prod`에 나오고 LICENSE 파일을 담고 있으므로 고지 파일에 실린다.
 - 동작 변화가 없어야 한다. 바뀌는 것은 Vite 플러그인 이름(`gazua-*` → `sch0718-*`)뿐이다.
 
@@ -323,3 +323,12 @@ export const NOTICE_FILE: RegExp;
 - 가즈아의 profiles·shares·sync 엔진·라우터
 - 시험용 D1 가짜와 토큰 하네스의 공용 패키지화. repass Worker 시험을 만들 때 다시 판단한다.
 - 발행 레지스트리 변경(GitHub Packages 유지)
+
+## 14. 구현 중 바뀐 결정 (2026-10-27)
+
+- `@sch0718/firebase-session`은 `vite`를 peer로 선언하지 않는다. 선택적 peer라도 pnpm이 workspace 루트의 vite를 Worker만 쓰는 패키지(가즈아 sync-worker)에 연결해, 라이선스 고지의 prod 목록에 vite·esbuild·rollup이 들어왔다.
+- 가즈아 루트의 `@sch0718/*`는 모두 devDependencies다(9장). 번들되는 두 패키지는 `BUNDLED_DEV`로 고지에 싣는다.
+- ui-svelte 시험의 jsdom은 29.1.1로 고정한다. jsdom 30은 계산된 `background`를 풀어 쓰고 `var()`를 지워, 가즈아에서 옮긴 Toggle 시험 두 개가 깨진다. Dependabot은 jsdom 메이저를 올리지 않는다.
+- svelte 개발 의존은 5.57.2다. 5.57.3은 pnpm 최소 공개 기간 정책에 걸렸다.
+- 가즈아 조건 호환 시험은 둘로 나눈다(사용자 결정). vite-app 사용 코드만 `skipLibCheck: true`로 검사한다. vite-plugin-pwa 2.0.0이 선택적 peer `@vite-pwa/assets-generator`를 import하고, workbox 타입이 WebWorker의 `ExtendableEvent`를 쓰기 때문이다.
+- toolkit `pnpm-workspace.yaml`의 `allowBuilds`로 firebase가 끌어오는 설치 스크립트(`@firebase/util`, `protobufjs`)를 실행하지 않는다. pnpm 11은 승인하지 않은 빌드 스크립트가 있으면 frozen install을 실패시킨다.

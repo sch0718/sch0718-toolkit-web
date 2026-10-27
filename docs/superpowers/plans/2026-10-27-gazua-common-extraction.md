@@ -2673,7 +2673,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 의존성**
 
 ```bash
-pnpm add -D -w svelte@5.57.3 @sveltejs/package@2.5.8 @sveltejs/vite-plugin-svelte@7.3.1 svelte-check@4.7.7 @testing-library/svelte@5.4.2 jsdom@30.1.3
+pnpm add -D -w svelte@5.57.2 @sveltejs/package@2.5.8 @sveltejs/vite-plugin-svelte@7.3.1 svelte-check@4.7.7 @testing-library/svelte@5.4.2 jsdom@29.1.1
 ```
 
 - [ ] **Step 2: 뼈대**
@@ -4396,8 +4396,8 @@ cat > .npmrc <<'EOF'
 @sch0718:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
 EOF
-pnpm add @sch0718/firebase-session@0.1.0 @sch0718/ui-svelte@0.1.0
-pnpm add -D @sch0718/vite-app@0.1.0 @sch0718/license-notices@0.1.0
+pnpm add -D -w @sch0718/firebase-session@0.1.0 @sch0718/ui-svelte@0.1.0
+pnpm add -D -w @sch0718/vite-app@0.1.0 @sch0718/license-notices@0.1.0
 pnpm --filter sync-worker add @sch0718/firebase-session@0.1.0
 grep -n "sch0718" package.json sync-worker/package.json   # file: 경로가 없어야 한다
 ```
