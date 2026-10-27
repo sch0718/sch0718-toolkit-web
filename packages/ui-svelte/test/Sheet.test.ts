@@ -131,6 +131,41 @@ describe('Sheet', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: '닫기' }));
   });
 
+  // <fieldset disabled> 안의 컨트롤은 자기 disabled 속성이 없어도 :disabled라 포커스할 수 없다.
+  it('skips controls inside <fieldset disabled> when wrapping Tab', async () => {
+    const withDisabledFieldset = createRawSnippet(() => ({
+      render: () =>
+        `<div><button id="enabled">켜짐</button><fieldset disabled><button id="off">x</button></fieldset></div>`,
+    }));
+    setup({ children: withDisabledFieldset });
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: '닫기' });
+    const enabled = dialog.querySelector<HTMLElement>('#enabled')!;
+
+    close.focus();
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(enabled);
+
+    await fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+  });
+
+  it('keeps controls in the first <legend> of a disabled fieldset (HTML :disabled rule)', async () => {
+    const withLegend = createRawSnippet(() => ({
+      render: () =>
+        `<div><fieldset disabled><legend><button id="legend">범례</button></legend><button id="off">x</button></fieldset></div>`,
+    }));
+    setup({ children: withLegend });
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: '닫기' });
+
+    close.focus();
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(dialog.querySelector('#legend'));
+  });
+
   it('locks body scroll while open and restores it on close and on unmount', async () => {
     document.body.style.overflow = 'auto';
     const { rerender, unmount } = setup();

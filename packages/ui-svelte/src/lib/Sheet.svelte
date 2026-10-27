@@ -50,8 +50,12 @@
   let dragStartY: number | null = null;
   let dragY = $state(0);
 
+  // :disabled는 자기 disabled 속성 말고도 <fieldset disabled> 안의 컨트롤(첫 legend 안은 빼고)까지 잡는다.
+  // 이런 컨트롤은 focus()가 되지 않아 순환의 끝으로 고르면 포커스가 멈춘다.
   function focusables(): HTMLElement[] {
-    return dialogEl ? [...dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !isHidden(el)) : [];
+    return dialogEl
+      ? [...dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.matches(':disabled') && !isHidden(el))
+      : [];
   }
 
   /** 시트 밖(SnackbarHost)에 떠 있는 스낵바 동작 버튼. 시트가 열려 있는 동안 Tab 순환의 끝에 넣는다. */
