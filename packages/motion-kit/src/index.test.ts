@@ -166,6 +166,18 @@ describe('motionCss', () => {
 });
 
 describe('svgDocument', () => {
+  it('CSS의 &·<를 바꿔 XML이 깨지지 않게 한다', () => {
+    const svg = svgDocument({
+      w: 1,
+      h: 1,
+      title: '',
+      desc: '',
+      css: "@media (width < 400px){text{font-family:'A&B'}}",
+      body: '',
+    });
+    expect(svg).toContain("<style>@media (width &lt; 400px){text{font-family:'A&amp;B'}}</style>");
+  });
+
   it('제목·설명을 이스케이프하고 끝에 줄바꿈을 붙인다', () => {
     expect(svgDocument({ w: 10, h: 20, title: 'A&B', desc: '<d>', css: 'x{}', body: '<g/>' })).toBe(
       `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="20" viewBox="0 0 10 20" role="img" aria-labelledby="motion-title motion-desc">

@@ -185,12 +185,15 @@ export interface SvgDocumentOptions {
   body: string;
 }
 
-/** 크기·제목·설명·CSS·본문으로 SVG 문서 하나를 만든다. 끝에 줄바꿈이 붙는다. */
+/**
+ * 크기·제목·설명·CSS·본문으로 SVG 문서 하나를 만든다. 끝에 줄바꿈이 붙는다.
+ * CSS의 `&`·`<`는 XML이 깨지지 않게 바꾼다. `body`는 SVG 조각 그대로 넣는다.
+ */
 export function svgDocument({ w, h, title, desc, css, body }: SvgDocumentOptions): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-labelledby="motion-title motion-desc">
 <title id="motion-title">${esc(title)}</title>
 <desc id="motion-desc">${esc(desc)}</desc>
-<style>${css}</style>
+<style>${css.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</style>
 ${body}
 </svg>
 `;
