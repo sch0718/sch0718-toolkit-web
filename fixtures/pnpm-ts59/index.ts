@@ -35,3 +35,17 @@ export const shared: Promise<'shared' | 'copied' | 'cancelled' | 'failed'> = sha
   card.title,
   { copy: async () => undefined },
 );
+
+import { effects, motionCss, svgDocument, textWidth, type Effect } from '@sch0718/motion-kit';
+
+const custom: Effect = { name: 'spin', rule: () => '', keyframes: () => '' };
+const css: string = motionCss({
+  sceneLength: 3,
+  scenes: 2,
+  font: 'sans-serif',
+  effects: [effects.rise, effects.draw({ seconds: 1 }), custom],
+});
+// @ts-expect-error 글꼴은 서비스가 꼭 준다
+motionCss({ sceneLength: 3, scenes: 2, effects: [] });
+export const svg: string = svgDocument({ w: 10, h: 10, title: 't', desc: 'd', css, body: '' });
+export const width: number = textWidth('가나', 12);
