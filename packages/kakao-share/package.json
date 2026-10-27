@@ -1,0 +1,35 @@
+{
+  "name": "@sch0718/kakao-share",
+  "version": "0.0.0",
+  "description": "카카오 JavaScript SDK의 피드 공유를 감싸는 작은 모듈. 키와 이미지 주소는 앱이 주입하고, SDK는 SRI로 확인해 지연 로드한다.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "신춘호 (https://github.com/sch0718)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sch0718/sch0718-toolkit-web.git",
+    "directory": "packages/kakao-share"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp ../../LICENSE LICENSE",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.1"
+  }
+}
