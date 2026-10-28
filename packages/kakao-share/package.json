@@ -1,6 +1,6 @@
 {
   "name": "@sch0718/kakao-share",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "카카오 JavaScript SDK의 피드 공유를 감싸는 작은 모듈. 키와 이미지 주소는 앱이 주입하고, SDK는 SRI로 확인해 지연 로드한다.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": "신춘호 (https://github.com/sch0718)",
