@@ -1,5 +1,11 @@
 # @sch0718/kakao-share
 
+## 0.1.1
+
+### Patch Changes
+
+- [#14](https://github.com/sch0718/sch0718-toolkit-web/pull/14) [`25a4c53`](https://github.com/sch0718/sch0718-toolkit-web/commit/25a4c538b138f8f3b2fc35e8fb38dbace81a2b1a) Thanks [@sch0718](https://github.com/sch0718)! - 카카오 SDK를 `init` 뒤에 `Share`가 붙는 실제 동작에 맞춰 확인하고, 링크 기본 한도를 모바일 실측값 400자로 낮춘다(랜드마크 [#62](https://github.com/sch0718/landmark/pull/62)와 같은 수정).
+
 ## 0.1.0
 
 ### Minor Changes
