@@ -11,14 +11,18 @@ import {
 } from './index.js';
 
 const config = { appKey: 'e2e-kakao-key' };
-function fakeSdk() {
+function fakeSdk({ shareAfterInit = true } = {}) {
   let initialized = false;
-  const sdk = {
+  const sdk: {
+    init: ReturnType<typeof vi.fn>;
+    isInitialized(): boolean;
+    Share?: { sendDefault: ReturnType<typeof vi.fn> };
+  } = {
     init: vi.fn(() => {
       initialized = true;
+      if (shareAfterInit) sdk.Share = { sendDefault: vi.fn() };
     }),
     isInitialized: () => initialized,
-    Share: { sendDefault: vi.fn() },
   };
   return sdk;
 }
@@ -35,6 +39,38 @@ afterEach(() => {
 });
 
 describe('카카오톡 공용 모듈', () => {
+  it('로드 직후 Share가 없어도 초기화한 뒤 준비와 전송에 성공한다', async () => {
+    const ready = preloadKakao(config);
+    const sdk = inject();
+    expect(sdk.Share).toBeUndefined();
+    expect(kakaoReady()).toBe(false);
+    document.scripts[0]!.dispatchEvent(new Event('load'));
+    await ready;
+    expect(sdk.init).toHaveBeenCalledExactlyOnceWith(config.appKey);
+    expect(kakaoReady()).toBe(true);
+    expect(sendKakao({ title: '장소', url: 'https://app.test' }, config)).toBe(true);
+    expect(sdk.Share!.sendDefault).toHaveBeenCalledTimes(1);
+  });
+  it('초기화 뒤에도 Share가 없으면 공유를 쓸 수 없다고 알린다', async () => {
+    const failed = expect(preloadKakao(config)).rejects.toThrow('카카오톡 공유를 쓸 수 없어요');
+    const sdk = inject(fakeSdk({ shareAfterInit: false }));
+    document.scripts[0]!.dispatchEvent(new Event('load'));
+    await failed;
+    expect(sdk.init).toHaveBeenCalledExactlyOnceWith(config.appKey);
+    expect(kakaoReady()).toBe(false);
+    expect(sendKakao({ title: '장소', url: 'https://app.test' }, config)).toBe(false);
+  });
+  it.each([undefined, '함수가 아님'])(
+    'init 함수가 없으면 SDK가 없다고 알린다: %s',
+    async (init) => {
+      const failed = expect(preloadKakao(config)).rejects.toThrow('카카오톡 SDK가 없어요');
+      Object.assign(window, {
+        Kakao: { init, isInitialized: () => false, Share: { sendDefault: vi.fn() } },
+      });
+      document.scripts[0]!.dispatchEvent(new Event('load'));
+      await failed;
+    },
+  );
   it('동시에 불러도 스크립트를 한 번 넣고 한 번 초기화한다', async () => {
     const first = preloadKakao(config);
     const second = preloadKakao(config);
@@ -88,10 +124,16 @@ describe('카카오톡 공용 모듈', () => {
     await expect(preloadKakao(config)).rejects.toThrow();
   });
   it('링크 한도 경계와 키를 동기로 검사한다', () => {
-    expect(kakaoLinkFits('a'.repeat(2000), config)).toBe(true);
-    expect(kakaoLinkFits('a'.repeat(2001), config)).toBe(false);
-    expect(kakaoLinkFits('a'.repeat(2001), { ...config, maxLinkLength: 2100 })).toBe(true);
+    expect(kakaoLinkFits('a'.repeat(400), config)).toBe(true);
+    expect(kakaoLinkFits('a'.repeat(401), config)).toBe(false);
     expect(kakaoLinkFits('a', { appKey: ' ' })).toBe(false);
+  });
+  it('설정한 링크 한도는 기본값보다 크거나 작아도 그 경계를 따른다', () => {
+    for (const maxLinkLength of [100, 500]) {
+      const options = { ...config, maxLinkLength };
+      expect(kakaoLinkFits('a'.repeat(maxLinkLength), options)).toBe(true);
+      expect(kakaoLinkFits('a'.repeat(maxLinkLength + 1), options)).toBe(false);
+    }
   });
   it('feed의 링크 두 개·이미지·단추를 동기로 보내고 SDK 예외를 잡는다', async () => {
     const sdk = inject();
@@ -106,7 +148,7 @@ describe('카카오톡 공용 모듈', () => {
       buttonTitle: '지도에서 보기',
     };
     expect(sendKakao(card, config)).toBe(true);
-    expect(sdk.Share.sendDefault).toHaveBeenCalledWith({
+    expect(sdk.Share!.sendDefault).toHaveBeenCalledWith({
       objectType: 'feed',
       content: {
         title: card.title,
@@ -118,9 +160,9 @@ describe('카카오톡 공용 모듈', () => {
       },
       buttonTitle: '지도에서 보기',
     });
-    expect(sendKakao({ ...card, url: 'a'.repeat(2001) }, config)).toBe(false);
-    expect(sdk.Share.sendDefault).toHaveBeenCalledTimes(1);
-    sdk.Share.sendDefault.mockImplementation(() => {
+    expect(sendKakao({ ...card, url: 'a'.repeat(401) }, config)).toBe(false);
+    expect(sdk.Share!.sendDefault).toHaveBeenCalledTimes(1);
+    sdk.Share!.sendDefault.mockImplementation(() => {
       throw new Error('카카오 오류');
     });
     expect(sendKakao(card, config)).toBe(false);
