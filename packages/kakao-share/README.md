@@ -21,14 +21,14 @@ button.onclick = () => {
 - `KakaoShareConfig`: 호출자가 `appKey`(JavaScript 키)를 주입합니다. `sdkUrl`, `integrity`, `maxLinkLength`를 바꿀 수 있습니다.
 - `KakaoCard`: `title`, `url`과 선택적인 `description`, `imageUrl`, `imageWidth`, `imageHeight`, `buttonTitle`을 받습니다. 이미지 주소도 호출자가 주입합니다.
 - `kakaoLinkFits(url, config)`: 키가 있고 링크가 한도 이내인지 동기로 검사합니다.
-- `preloadKakao(config)`: SDK 스크립트를 한 번 받아 초기화합니다. 기존 `window.Kakao.Share`나 같은 주소의 스크립트를 재사용합니다. 실패·15초 시간 초과 시 다음 호출에서 다시 시도하며, 브라우저 밖이나 빈 키는 거절합니다. 초기화된 SDK는 다시 초기화하지 않습니다. 한 페이지에서는 한 앱의 키를 씁니다.
+- `preloadKakao(config)`: SDK 스크립트를 한 번 받아 초기화합니다. `init` 함수가 있는 기존 `window.Kakao`나 같은 주소의 스크립트를 재사용합니다. 실제 SDK는 `init` 뒤에야 `Share`를 붙이므로 초기화한 뒤 공유 기능을 확인합니다. 실패·15초 시간 초과 시 다음 호출에서 다시 시도하며, 브라우저 밖이나 빈 키는 거절합니다. 초기화된 SDK는 다시 초기화하지 않습니다. 한 페이지에서는 한 앱의 키를 씁니다.
 - `kakaoReady()`: SDK가 초기화됐는지 동기로 확인합니다.
 - `sendKakao(card, config)`: 동기로 `Share.sendDefault`를 호출합니다. 준비 전·링크 한도 초과·SDK 예외는 `false`, 호출 성공은 `true`입니다. 메시지 전달 완료를 확인하는 콜백은 없습니다.
 - `shareOrCopy(url, title, { share?, copy? })`: 공유를 먼저 시도하고 실패하면 복사합니다. 결과는 `shared`, `copied`, `cancelled`, `failed`입니다. `AbortError`는 취소로 끝내며 복사하지 않습니다. 브라우저 메서드는 호출자가 감싸거나 바인딩해 넘깁니다. 알림과 대체 정책은 앱에서 정합니다.
 
-기본 상수는 `KAKAO_SDK_URL`(2.8.4), `KAKAO_SDK_INTEGRITY`, `KAKAO_LINK_MAX`(2,000자)입니다. 다른 SDK 주소를 쓰면 그 버전의 integrity도 함께 넘겨야 합니다.
+기본 상수는 `KAKAO_SDK_URL`(2.8.4), `KAKAO_SDK_INTEGRITY`, `KAKAO_LINK_MAX`(400자)입니다. 다른 SDK 주소를 쓰면 그 버전의 integrity도 함께 넘겨야 합니다.
 
-SDK는 공유 단추를 보일 때 미리 받습니다. 준비된 뒤 클릭 처리 안에서 `sendKakao`를 동기로 호출해야 PC 팝업 차단을 피할 수 있습니다. 링크를 비동기로 만든다면 준비 완료 뒤 새 단추 클릭에서 호출합니다. 모바일 메시지 JSON 한도를 고려해 링크 기본 한도를 2,000자로 제한합니다.
+SDK는 공유 단추를 보일 때 미리 받습니다. 준비된 뒤 클릭 처리 안에서 `sendKakao`를 동기로 호출해야 PC 팝업 차단을 피할 수 있습니다. 링크를 비동기로 만든다면 준비 완료 뒤 새 단추 클릭에서 호출합니다. 모바일 SDK는 보낼 메시지 JSON이 10,000자를 넘으면 오류를 내고 앱 밖 오류 화면으로 옮깁니다. `webUrl`·`mobileWebUrl`을 같이 주면 링크가 메시지에 약 15번 들어갑니다. 운영 도메인에서 카카오 템플릿 검증으로 잰 값으로, 제목 60자·긴 설명이어도 링크 400자면 약 9,000자이므로 기본 한도를 400자로 제한합니다(2026-10-27). `maxLinkLength`를 주면 그 값을 씁니다.
 
 피드 콘텐츠는 `title`·`imageUrl`·`description` 중 하나만 있으면 되고, 이 모듈은 `title`을 늘 받으므로 이미지 없이도 보낼 수 있습니다([메시지 기본 템플릿](https://developers.kakao.com/docs/ko/message-template/default) 콘텐츠 표, 2026-10-27 확인). 카드 이미지는 외부에서 접근할 수 있는 절대 URL(200×200px 이상·5MB 이하)을 넘깁니다. 제목과 설명은 최대 두 줄이며 단추 문구는 8자 이하를 권장합니다.
 
