@@ -15,6 +15,11 @@ updates:
       # @sveltejs/package 3.x는 TypeScript 6을 요구한다. 선언 파일을 TS 5.9로 만들므로 2.x에 고정한다(2026-10-27).
       - dependency-name: '@sveltejs/package'
         update-types: ['version-update:semver-major']
+      # firebase-session의 peer는 ^12다. 루트만 13으로 올리면 이 패키지는 계속 12로 시험돼 의미가 없다.
+      # 13.1은 Node 24.12 이상을 요구하는데 가즈아 CI·배포는 Node 22이고, 13의 큰 변경은 AI 모듈뿐이다(2026-10-28).
+      # 올릴 때는 peer를 넓히고 두 버전을 함께 시험한다.
+      - dependency-name: firebase
+        update-types: ['version-update:semver-major']
     groups:
       dev-tools:
         patterns: ['*']
