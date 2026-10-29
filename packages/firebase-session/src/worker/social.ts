@@ -193,7 +193,7 @@ export async function exchangeSocial(
   } catch {
     throw new HttpError(503, 'provider-unavailable');
   }
-  if (res.status >= 500) throw new HttpError(503, 'provider-unavailable');
+  if (res.status === 429 || res.status >= 500) throw new HttpError(503, 'provider-unavailable');
   if (res.status >= 400) throw new HttpError(401, 'invalid-code');
   let raw: unknown;
   try {

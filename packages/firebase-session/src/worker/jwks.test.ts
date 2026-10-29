@@ -130,6 +130,12 @@ describe('JWKS 캐시 정책과 장애 복구', () => {
     now++;
     await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
     expect(f).toHaveBeenCalledTimes(5);
+    now += 29_999;
+    await expect(c.key('k1')).rejects.toThrow(new CertsUnavailableError('jwks unavailable'));
+    expect(f).toHaveBeenCalledTimes(5);
+    now++;
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(6);
   });
   it('모르는 kid 재조회가 실패하면 유효한 캐시 조회 결과를 돌려준다', async () => {
     let now = T0;
@@ -142,13 +148,42 @@ describe('JWKS 캐시 정책과 장애 복구', () => {
     expect(await c.key('k1')).toBe(key);
     expect(f).toHaveBeenCalledTimes(2);
   });
-  it('캐시가 없으면 실패 뒤에도 매번 다시 시도한다', async () => {
+  it('캐시가 없으면 실패 뒤 정확히 30초가 지나야 다시 시도한다', async () => {
+    let now = T0;
     const f = vi.fn(async () => {
       throw new Error('network');
     });
-    const c = jwksKeys('https://keys.test', f, () => T0);
-    for (let i = 0; i < 2; i++)
-      await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    const c = jwksKeys('https://keys.test', f, () => now);
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(1);
+    now += 29_999;
+    await expect(c.key('other')).rejects.toThrow(new CertsUnavailableError('jwks unavailable'));
+    expect(f).toHaveBeenCalledTimes(1);
+    now++;
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
     expect(f).toHaveBeenCalledTimes(2);
+  });
+  it.each([false, true])('stale 한도 경과 %s: 실패 30초 뒤 성공하면 복구한다', async (stale) => {
+    let now = T0;
+    const f = vi.fn(async () => reply());
+    const c = jwksKeys('https://keys.test', f, () => now);
+    if (stale) {
+      await c.key('k1');
+      now += 7 * 3_600_000;
+    }
+    f.mockRejectedValue(new Error('network'));
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    const calls = stale ? 2 : 1;
+    f.mockImplementation(async () => reply());
+    now += 29_999;
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(calls);
+    now++;
+    const result = await Promise.all([c.key('k1'), c.key('k1'), c.key('other')]);
+    expect(result[0]).toBeInstanceOf(CryptoKey);
+    expect(result[1]).toBe(result[0]);
+    expect(result[2]).toBeNull();
+    expect(await c.key('k1')).toBe(result[0]);
+    expect(f).toHaveBeenCalledTimes(calls + 1);
   });
 });

@@ -131,11 +131,11 @@ try {
 }
 ```
 
-쓰는 공급자만 `social.kakao`·`social.naver`에 넣습니다. `social`이 없으면 `createSocial`은 404 `not-found`입니다. 토큰 엔드포인트의 거절은 401 `invalid-code`, ID 토큰 검증 실패는 401 `invalid-token`, 공급자·JWKS 장애나 코드 교환 시간 초과(10초)는 503 `provider-unavailable`입니다. 200 응답에 `id_token`이 없으면 OIDC 활성화 여부를 확인하세요. 클라이언트는 503을 `{ kind: 'limit', code: 'provider-unavailable' }`로 돌려줍니다.
+쓰는 공급자만 `social.kakao`·`social.naver`에 넣습니다. `social`이 없으면 `createSocial`은 404 `not-found`입니다. 토큰 엔드포인트의 거절(429 제외)은 401 `invalid-code`, ID 토큰 검증 실패는 401 `invalid-token`, 토큰 엔드포인트 429, 공급자·JWKS 장애나 코드 교환 시간 초과(10초)는 503 `provider-unavailable`입니다. 200 응답에 `id_token`이 없으면 OIDC 활성화 여부를 확인하세요. 클라이언트는 503을 `{ kind: 'limit', code: 'provider-unavailable' }`로 돌려줍니다.
 
 `redirectUris`를 주면 본문 `redirectUri`가 목록의 문자열 중 하나와 정확히 같아야 합니다(쿼리·끝 슬래시·대소문자 포함). 빈 배열이면 모두 거절하고, 생략하면 기존 URL 형식만 검사합니다. 운영 앱에는 localhost 콜백을 함께 등록하지 말고 개발용 공급자 앱(별도 Client ID)을 따로 쓰는 것을 권장합니다.
 
-JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없으면 매번 시도합니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
+JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초 동안 다시 조회하지 않고 바로 `CertsUnavailableError`를 던집니다(negative cache). 30초가 지나면 재시도하고 성공하면 실패 기록을 지웁니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
 
 허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 항상 빈 문자열입니다. 소셜 사용자의 이메일은 식별·인가에 쓰지 않습니다. 공급자 토큰에 문자열 이메일이 있으면 `createSocial`/`createSocialSession` 결과의 `user.unverifiedEmail`로만 소문자화해 줍니다(검증되지 않은 값, 표시용). 없으면 필드 자체를 넣지 않습니다. DB에 저장하거나 `VerifiedUser`에 더하지 않습니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
 
