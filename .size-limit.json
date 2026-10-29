@@ -23,7 +23,7 @@
     "path": "packages/firebase-session/dist/worker/index.js",
     "import": "{ createSessionAuth, googleCerts, matchOrigin, preflight, json, readJson }",
     "ignore": ["jose"],
-    "limit": "3.8 kB"
+    "limit": "4 kB"
   },
   {
     "name": "@sch0718/vite-app",

@@ -23,6 +23,7 @@ export {
   readSocialCallback,
   readSocialConfig,
   socialAuthorizeUrl,
+  socialNonce,
   SOCIAL_AUTHORIZE_URLS,
   stripSocialCallback,
   type SocialProvider,

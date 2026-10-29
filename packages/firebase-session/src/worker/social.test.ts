@@ -1,8 +1,10 @@
-import { SignJWT, UnsecuredJWT } from 'jose';
-import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
+import { socialNonce } from '../client/social.js';
+import { exportJWK, SignJWT, UnsecuredJWT } from 'jose';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestD1 } from '../../test/d1.js';
-import { CLIENT_ID, publicJwk, socialBody, socialToken } from '../../test/social.js';
-import { certs, otherKeys, PROJECT, T0 } from '../../test/tokens.js';
+import { CLIENT_ID, NONCE, publicJwk, socialBody, socialToken } from '../../test/social.js';
+import { certs, keys, otherKeys, PROJECT, T0 } from '../../test/tokens.js';
 import { HttpError } from './http.js';
 import { createSessionAuth, SESSION_PATHS, SESSION_TTL } from './session.js';
 import {
@@ -11,6 +13,9 @@ import {
   socialKeys,
   type SocialLoginOptions,
 } from './social.js';
+
+const issuedTokens = new Set<string>();
+beforeEach(() => issuedTokens.clear());
 
 function setup(extra: Partial<SocialLoginOptions> = {}, enabled = true, noKakao = false) {
   const db = createTestD1();
@@ -22,6 +27,23 @@ function setup(extra: Partial<SocialLoginOptions> = {}, enabled = true, noKakao 
     keys: { kakao: certs, naver: certs },
     fetch: f,
     ...extra,
+  };
+  const fetchToken = social.fetch!;
+  social.fetch = async (...args) => {
+    const response = await fetchToken(...args);
+    try {
+      const data: unknown = await response.clone().json();
+      if (
+        data &&
+        typeof data === 'object' &&
+        'id_token' in data &&
+        typeof data.id_token === 'string'
+      )
+        issuedTokens.add(data.id_token);
+    } catch {
+      /* 실패 응답에는 토큰이 없을 수 있다. */
+    }
+    return response;
   };
   if (noKakao) delete social.kakao;
   const auth = createSessionAuth({
@@ -46,7 +68,12 @@ function setup(extra: Partial<SocialLoginOptions> = {}, enabled = true, noKakao 
 const fails = async (p: Promise<unknown>, status: number, code: string, extra = {}) => {
   const error = await p.catch((e: unknown) => e);
   expect(error).toBeInstanceOf(HttpError);
-  expect(error).toMatchObject({ status, code, extra });
+  expect(error).toMatchObject({ status, code });
+  if (!(error instanceof HttpError)) return;
+  expect(error.extra).toEqual(extra);
+  const details = JSON.stringify([error.message, error.extra, String(error.stack)]);
+  for (const value of ['test-secret', socialBody.code, socialBody.codeVerifier, ...issuedTokens])
+    expect(details).not.toContain(value);
 };
 
 describe('소셜 설정', () => {
@@ -84,6 +111,7 @@ describe('createSocial', () => {
           id_token: await socialToken({
             iss: SOCIAL_PROVIDERS[provider].issuer,
             email: provider === 'kakao' ? 'ME@EXAMPLE.TEST' : undefined,
+            email_verified: true,
           }),
         }),
       );
@@ -94,10 +122,22 @@ describe('createSocial', () => {
         expiresAt: T0 + SESSION_TTL,
         user: {
           sub: `${provider}:AbC`,
-          email: provider === 'kakao' ? 'me@example.test' : '',
+          email: '',
+          ...(provider === 'kakao' && { unverifiedEmail: 'me@example.test' }),
           provider,
         },
       });
+      expect(s.db.raw.prepare('SELECT email FROM users').get()).toEqual({ email: '' });
+      expect(
+        (
+          await s.auth.authenticate(
+            new Request('https://api.test', {
+              headers: { 'X-S': result.sessionId },
+            }),
+          )
+        ).user.email,
+      ).toBe('');
+      if (provider === 'naver') expect(result.user).not.toHaveProperty('unverifiedEmail');
       const [url, init] = s.f.mock.calls[0]!;
       expect(url).toBe(SOCIAL_PROVIDERS[provider].tokenUrl);
       expect(init).toMatchObject({
@@ -128,7 +168,7 @@ describe('createSocial', () => {
     {},
     { provider: 'google' },
     { provider: null },
-    ...['code', 'codeVerifier', 'nonce', 'redirectUri'].flatMap((field) => [
+    ...['code', 'codeVerifier', 'redirectUri'].flatMap((field) => [
       { [field]: undefined },
       { [field]: 42 },
       { [field]: '' },
@@ -136,16 +176,12 @@ describe('createSocial', () => {
     { code: 'a b' },
     { code: 'abc\n' },
     { codeVerifier: 'x'.repeat(43) + '\n' },
-    { nonce: 'x'.repeat(16) + '\n' },
     { code: 'x'.repeat(1025) },
     { code: '한글' },
     { code: '\n' },
     { codeVerifier: 'x'.repeat(42) },
     { codeVerifier: 'x'.repeat(129) },
     { codeVerifier: '+'.repeat(43) },
-    { nonce: 'x'.repeat(15) },
-    { nonce: 'x'.repeat(129) },
-    { nonce: '.'.repeat(16) },
     { redirectUri: 'not-url' },
     { redirectUri: 'https://app.test/#x' },
     { redirectUri: 'https://app.test/#' },
@@ -225,8 +261,10 @@ describe('createSocial', () => {
     { sub: 'x'.repeat(129) },
   ])('클레임 위반 %j', async (claims) => {
     const s = setup();
-    s.f.mockResolvedValue(Response.json({ id_token: await socialToken(claims) }));
+    const idToken = await socialToken(claims);
+    s.f.mockResolvedValue(Response.json({ id_token: idToken }));
     await fails(s.create(), 401, 'invalid-token');
+    expect(issuedTokens.has(idToken)).toBe(true);
   });
   it('서명 위조·모르는 kid·none·HS256 거절', async () => {
     const s = setup();
@@ -261,4 +299,96 @@ describe('createSocial', () => {
     });
     await fails(setup({ keys: down }).create(), 503, 'provider-unavailable');
   });
+});
+
+describe('verifier에 묶인 nonce', () => {
+  it('다른 verifier에서 파생한 nonce는 거절한다', async () => {
+    const s = setup();
+    const nonce = createHash('sha256')
+      .update('nonce:' + 'x'.repeat(43))
+      .digest('base64url');
+    s.f.mockResolvedValue(Response.json({ id_token: await socialToken({ nonce }) }));
+    await fails(s.create(), 401, 'invalid-token');
+  });
+  it.each([undefined, null, 42, '', NONCE])(
+    '본문 nonce 키가 있으면 값 %s와 무관하게 fetch 전에 거절한다',
+    async (nonce) => {
+      const s = setup();
+      await fails(s.create({ ...socialBody, nonce }), 400, 'bad-request');
+      expect(s.f).not.toHaveBeenCalled();
+    },
+  );
+  it('클라이언트 socialNonce로 만든 토큰을 검증한다', async () => {
+    const s = setup();
+    const codeVerifier = 'x'.repeat(64);
+    s.f.mockResolvedValue(
+      Response.json({
+        id_token: await socialToken({ nonce: await socialNonce(codeVerifier) }),
+      }),
+    );
+    expect(await s.create({ ...socialBody, codeVerifier })).toHaveProperty('sessionId');
+  });
+});
+
+describe('redirectUri 허용 목록', () => {
+  it('정확히 일치하면 통과한다', async () => {
+    const s = setup({ kakao: { clientId: CLIENT_ID, redirectUris: [socialBody.redirectUri] } });
+    expect(await s.create()).toHaveProperty('sessionId');
+  });
+  it.each([
+    { redirectUris: [socialBody.redirectUri + '?q=1'] },
+    { redirectUris: [socialBody.redirectUri + '/'] },
+    { redirectUris: [socialBody.redirectUri.replace('app.example', 'APP.EXAMPLE')] },
+    { redirectUris: [] },
+  ])('목록 $redirectUris에 정확히 없으면 fetch 전에 거절한다', async ({ redirectUris }) => {
+    const s = setup({ kakao: { clientId: CLIENT_ID, redirectUris } });
+    await fails(s.create(), 400, 'bad-request');
+    expect(s.f).not.toHaveBeenCalled();
+  });
+});
+
+describe('aud 배열과 azp', () => {
+  it.each([
+    { aud: [CLIENT_ID, 'other'], azp: undefined, pass: false },
+    { aud: [CLIENT_ID, 'other'], azp: CLIENT_ID, pass: true },
+    { aud: [CLIENT_ID, 'other'], azp: 'other', pass: false },
+    { aud: [CLIENT_ID], pass: true },
+    { aud: ['other'], pass: false },
+  ])('aud $aud, azp $azp', async ({ pass, ...claims }) => {
+    const s = setup();
+    s.f.mockResolvedValue(Response.json({ id_token: await socialToken(claims) }));
+    if (pass) expect(await s.create()).toHaveProperty('sessionId');
+    else await fails(s.create(), 401, 'invalid-token');
+  });
+});
+
+describe('공급자별 JWKS 키 격리', () => {
+  it.each(['kakao', 'naver'] as const)(
+    '%s는 같은 kid여도 자기 공급자 키만 받는다',
+    async (provider) => {
+      const naverJwk = { ...publicJwk, ...(await exportJWK(otherKeys.publicKey)) };
+      const f = vi.fn<typeof fetch>(async (url) =>
+        Response.json({
+          keys: [url === SOCIAL_PROVIDERS.kakao.jwksUrl ? publicJwk : naverJwk],
+        }),
+      );
+      const s = setup({ keys: socialKeys(f, () => T0) });
+      for (const valid of [false, true]) {
+        const ownKey = provider === 'kakao' ? keys.privateKey : otherKeys.privateKey;
+        const wrongKey = provider === 'kakao' ? otherKeys.privateKey : keys.privateKey;
+        s.f.mockResolvedValue(
+          Response.json({
+            id_token: await socialToken(
+              { iss: SOCIAL_PROVIDERS[provider].issuer },
+              { key: valid ? ownKey : wrongKey },
+            ),
+          }),
+        );
+        if (valid) expect(await s.create({ ...socialBody, provider })).toHaveProperty('sessionId');
+        else await fails(s.create({ ...socialBody, provider }), 401, 'invalid-token');
+      }
+      expect(f).toHaveBeenCalledTimes(1);
+      expect(f.mock.calls[0]?.[0]).toBe(SOCIAL_PROVIDERS[provider].jwksUrl);
+    },
+  );
 });

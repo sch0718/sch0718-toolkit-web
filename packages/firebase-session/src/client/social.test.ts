@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import {
   beginSocialSignIn,
   readSocialCallback,
   readSocialConfig,
   socialAuthorizeUrl,
+  socialNonce,
   stripSocialCallback,
 } from './social.js';
 
@@ -14,7 +16,6 @@ const redirectUri = 'https://app.test/callback?keep=한글';
 const pending = {
   provider: 'kakao',
   state: 'state',
-  nonce: 'nonce',
   verifier,
   redirectUri,
   createdAt: T0,
@@ -98,7 +99,6 @@ describe('beginSocialSignIn', () => {
     expect(saved).toEqual({
       provider: 'naver',
       state: verifier,
-      nonce: verifier,
       verifier,
       redirectUri,
       createdAt: T0,
@@ -108,8 +108,8 @@ describe('beginSocialSignIn', () => {
       'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
     );
     expect(url.searchParams.get('state')).toBe(saved.state);
-    expect(url.searchParams.get('nonce')).toBe(saved.nonce);
-    expect(random).toHaveBeenCalledTimes(3);
+    expect(url.searchParams.get('nonce')).toBe(await socialNonce(verifier));
+    expect(random).toHaveBeenCalledTimes(2);
   });
   it('요청에 적힌 다른 verifier도 SHA-256으로 계산한다', async () => {
     const navigate = vi.fn();
@@ -147,7 +147,7 @@ describe('beginSocialSignIn', () => {
 });
 
 describe('readSocialCallback', () => {
-  it('성공하면 verifier·nonce를 돌려주고 한 번만 읽는다', () => {
+  it('성공하면 verifier를 돌려주고 한 번만 읽는다', () => {
     const s = storage();
     const url = 'https://app.test/callback?code=abc&state=state';
     expect(readSocialCallback(url, { storage: s, now: () => T0 })).toEqual({
@@ -155,7 +155,6 @@ describe('readSocialCallback', () => {
       provider: 'kakao',
       code: 'abc',
       codeVerifier: verifier,
-      nonce: 'nonce',
       redirectUri,
     });
     expect(s.removeItem).toHaveBeenCalledWith(KEY);
@@ -181,7 +180,7 @@ describe('readSocialCallback', () => {
   it('공급자 오류 코드는 제한하고 설명은 돌려주지 않는다', () => {
     const read = (error: string) =>
       readSocialCallback(
-        `https://app.test/?state=state&error=${encodeURIComponent(error)}&error_description=secret`,
+        `https://app.test/callback?state=state&error=${encodeURIComponent(error)}&error_description=secret`,
         { storage: storage(), now: () => T0 },
       );
     expect(read('server_error')).toEqual({
@@ -194,14 +193,22 @@ describe('readSocialCallback', () => {
       expect(read(error)).toEqual({ ok: false, provider: 'kakao', reason: 'provider-error' });
   });
   it('pending이 없거나 깨졌으면 null', () => {
-    for (const value of [null, {}, 42, { ...pending, provider: 'google' }]) {
+    for (const value of [
+      null,
+      {},
+      42,
+      { ...pending, provider: 'google' },
+      { ...pending, redirectUri: 'not-url' },
+    ]) {
       expect(
-        readSocialCallback('https://app.test/?code=c&state=state', { storage: storage(value) }),
+        readSocialCallback('https://app.test/callback?code=c&state=state', {
+          storage: storage(value),
+        }),
       ).toBeNull();
     }
     const s = storage();
     s.setItem(KEY, '{bad');
-    expect(readSocialCallback('https://app.test/?code=c', { storage: s })).toBeNull();
+    expect(readSocialCallback('https://app.test/callback?code=c', { storage: s })).toBeNull();
   });
   it('콜백이 아니면 저장값을 보존한다', () => {
     const s = storage();
@@ -231,5 +238,43 @@ it('readSocialConfig는 공개 clientId만 읽고 공백을 지운다', () => {
   ).toEqual({ kakao: { clientId: 'k' }, naver: { clientId: 'n' } });
   expect(readSocialConfig({ VITE_NAVER_LOGIN_CLIENT_ID: 'n' })).toEqual({
     naver: { clientId: 'n' },
+  });
+});
+
+it('socialNonce는 UTF-8 SHA-256 고정 벡터와 같다', async () => {
+  expect(await socialNonce(verifier)).toBe(
+    createHash('sha256')
+      .update('nonce:' + verifier)
+      .digest('base64url'),
+  );
+});
+
+describe('콜백 redirect 경로 확인', () => {
+  it.each(['https://app.test/other', 'https://other.test/callback'])(
+    '%s는 state·만료·공급자 오류보다 먼저 거절하고 한 번만 읽는다',
+    (base) => {
+      const s = storage();
+      const url = base + '?error=access_denied&state=wrong';
+      expect(readSocialCallback(url, { storage: s, now: () => T0 + 600_000 })).toEqual({
+        ok: false,
+        reason: 'redirect-mismatch',
+        provider: 'kakao',
+      });
+      expect(readSocialCallback(url, { storage: s })).toBeNull();
+    },
+  );
+  it('쿼리 차이는 무시한다', () => {
+    expect(
+      readSocialCallback('https://app.test/callback?code=c&state=state&keep=other', {
+        storage: storage(),
+        now: () => T0,
+      }),
+    ).toEqual({
+      ok: true,
+      provider: 'kakao',
+      code: 'c',
+      codeVerifier: verifier,
+      redirectUri,
+    });
   });
 });

@@ -75,7 +75,6 @@ export interface SessionClient<X extends Fail = never> {
       provider: SocialProvider;
       code: string;
       codeVerifier: string;
-      nonce: string;
       redirectUri: string;
     },
     label: string,
@@ -84,7 +83,7 @@ export interface SessionClient<X extends Fail = never> {
       {
         sessionId: string;
         expiresAt: number;
-        user: { sub: string; email: string; provider: SocialProvider };
+        user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string };
       },
       BaseFail | X
     >

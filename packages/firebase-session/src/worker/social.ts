@@ -1,7 +1,7 @@
 // 공급자 인가 코드 교환과 OIDC 검증. 공급자 시크릿·토큰·코드는 오류에 담지 않는다.
 import { decodeProtectedHeader, jwtVerify } from 'jose';
 import type { CertSource } from './certs.js';
-import { HttpError } from './http.js';
+import { base64url, HttpError, PROVIDER_TIMEOUT_MS } from './http.js';
 import { jwksKeys } from './jwks.js';
 import { CLOCK_SKEW_SEC } from './verify.js';
 
@@ -31,6 +31,8 @@ export const SOCIAL_PROVIDERS: Record<
 export interface SocialProviderConfig {
   clientId: string;
   clientSecret?: string;
+  /** 주면 본문 redirectUri와 정확히 일치해야 한다. 빈 배열은 모두 거절하고, 없으면 형식만 검사한다. */
+  redirectUris?: readonly string[];
 }
 export interface SocialLoginOptions {
   allowedAccounts: string | undefined;
@@ -60,7 +62,6 @@ interface SocialBody {
   provider: SocialProvider;
   code: string;
   codeVerifier: string;
-  nonce: string;
   redirectUri: string;
   label?: unknown;
 }
@@ -68,13 +69,13 @@ function readBody(body: unknown, o: SocialLoginOptions): SocialBody {
   const bad = () => new HttpError(400, 'bad-request');
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw bad();
   const b = body as Record<string, unknown>;
+  if (Object.hasOwn(b, 'nonce')) throw bad();
   const provider = b['provider'];
   if ((provider !== 'kakao' && provider !== 'naver') || !o[provider]?.clientId) throw bad();
   const matches = (key: string, re: RegExp) => typeof b[key] === 'string' && re.test(b[key]);
   if (
     !matches('code', /^[\x21-\x7e]{1,1024}$/) ||
-    !matches('codeVerifier', /^[A-Za-z0-9._~-]{43,128}$/) ||
-    !matches('nonce', /^[A-Za-z0-9_-]{16,128}$/)
+    !matches('codeVerifier', /^[A-Za-z0-9._~-]{43,128}$/)
   )
     throw bad();
   const redirect = b['redirectUri'];
@@ -90,8 +91,12 @@ function readBody(body: unknown, o: SocialLoginOptions): SocialBody {
     !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
   )
     throw bad();
+  const allowed = o[provider]!.redirectUris;
+  if (allowed !== undefined && !allowed.includes(redirect)) throw bad();
   return body as SocialBody;
 }
+
+const SOCIAL_NONCE_PREFIX = 'nonce:';
 
 async function verifySocialIdToken(
   token: string,
@@ -99,7 +104,7 @@ async function verifySocialIdToken(
   o: SocialLoginOptions,
   now: number,
   reauthWindow: number,
-): Promise<{ sub: string; email: string }> {
+): Promise<{ sub: string; email: string; unverifiedEmail?: string }> {
   const invalid = () => new HttpError(401, 'invalid-token');
   let header: ReturnType<typeof decodeProtectedHeader>;
   try {
@@ -124,11 +129,22 @@ async function verifySocialIdToken(
       clockTolerance: CLOCK_SKEW_SEC,
       requiredClaims: ['exp', 'iat', 'sub'],
     });
+    const nonce = base64url(
+      new Uint8Array(
+        await crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(SOCIAL_NONCE_PREFIX + b.codeVerifier),
+        ),
+      ),
+    );
     if (
       typeof payload.iat !== 'number' ||
       payload.iat > now / 1000 + CLOCK_SKEW_SEC ||
       now - payload.iat * 1000 > reauthWindow ||
-      payload['nonce'] !== b.nonce ||
+      payload['nonce'] !== nonce ||
+      (Array.isArray(payload.aud) &&
+        payload.aud.length > 1 &&
+        payload['azp'] !== o[b.provider]!.clientId) ||
       (payload['azp'] !== undefined && payload['azp'] !== o[b.provider]!.clientId) ||
       typeof payload.sub !== 'string' ||
       !payload.sub ||
@@ -137,7 +153,10 @@ async function verifySocialIdToken(
       throw invalid();
     return {
       sub: payload.sub,
-      email: typeof payload['email'] === 'string' ? payload['email'].toLowerCase() : '',
+      email: '',
+      ...(typeof payload['email'] === 'string' && {
+        unverifiedEmail: payload['email'].toLowerCase(),
+      }),
     };
   } catch {
     throw invalid();
@@ -167,7 +186,9 @@ export async function exchangeSocial(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form,
-      ...(typeof AbortSignal.timeout === 'function' && { signal: AbortSignal.timeout(10_000) }),
+      ...(typeof AbortSignal.timeout === 'function' && {
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      }),
     });
   } catch {
     throw new HttpError(503, 'provider-unavailable');
@@ -186,5 +207,5 @@ export async function exchangeSocial(
   const account = `${b.provider}:${verified.sub}`;
   if (!parseAccountList(o.allowedAccounts).has(account))
     throw new HttpError(403, 'not-allowed', { account });
-  return { user: { sub: account, email: verified.email, provider: b.provider }, label: b.label };
+  return { user: { ...verified, sub: account, provider: b.provider }, label: b.label };
 }

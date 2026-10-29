@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -112,6 +112,14 @@ describe('verifyIdToken', () => {
 });
 
 describe('googleCerts', () => {
+  it('공급자 요청에 시간 제한 signal을 붙인다', async () => {
+    const f = vi.fn<typeof fetch>(async () => Response.json({}));
+    await googleCerts(f, () => T0, 'https://certs.test').key('k1');
+    expect(f).toHaveBeenCalledWith('https://certs.test', {
+      signal: expect.any(AbortSignal),
+    });
+  });
+
   it('x509 인증서로 실제 서명을 검증한다(openssl로 만든 지어낸 인증서)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'toolkit-cert-'));
     execFileSync(

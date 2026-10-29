@@ -5,7 +5,6 @@ const input = {
   provider: 'naver' as const,
   code: 'code',
   codeVerifier: 'v'.repeat(43),
-  nonce: 'n'.repeat(32),
   redirectUri: 'https://app.test/cb',
 };
 function setup(o: Partial<SessionClientOptions<never>> = {}) {

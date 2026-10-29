@@ -3,13 +3,13 @@
 - 날짜: 2026-10-29
 - 대상: `@sch0718/firebase-session`(이 저장소). 가즈아 적용은 이 문서 범위 밖이며 별도 작업으로 한다.
 - 요청: "지금은 구글 로그인만 되는데 네이버, 카카오 간편 로그인 기능을 넣고 싶어. 가능한지 검토 후 이것도 (공통 기능으로) 구현해줘."
-- 상태: **추천안으로 진행, 사용자 확인 필요**(12장 결정 항목).
+- 상태: 구현 및 보안 검토 반영(2026-10-29). 12장은 설계 당시 결정 항목이다.
 
 ## 1. 목표와 범위
 
 - 패키지를 쓰는 서비스가 Google 로그인과 함께 카카오·네이버 로그인을 켤 수 있게 한다. 로그인 뒤에는 지금과 같은 D1 기기 세션(30일 슬라이딩, 기기별·전체 철회, 목록)을 쓴다.
 - 허용 목록 모델은 유지한다. 카카오·네이버 사용자는 공급자 사용자 ID(`kakao:<sub>`, `naver:<sub>`)로 허용한다.
-- **하위 호환.** 지금 쓰는 서비스는 코드 수정 없이 그대로 동작해야 한다. 새 옵션을 넘기지 않으면 Worker·클라이언트 동작이 바이트 단위로 같다. 새 마이그레이션을 적용하지 않아도 Google 경로는 동작한다.
+- **하위 호환.** 지금 쓰는 서비스(0.1.0)는 코드 수정 없이 그대로 동작해야 한다. 새 마이그레이션을 적용하지 않아도 Google 경로는 동작한다. 예외 둘(15장): `SessionAuth`·`SessionClient`를 직접 구현(목·래퍼)하는 코드는 새 필수 메서드를 더해야 하고(minor로 허용), `googleCerts` 요청에 10초 시간 제한이 붙는다. 소셜 API는 아직 발행 전이라 이번 보안 검토로 바뀐 소셜 쪽 모양(nonce 제거 등)은 하위 호환 대상이 아니다.
 - 범위 밖: 가즈아 적용(UI 버튼, 라우터 연결, secret 등록), 같은 사람의 Google·카카오·네이버 계정 연결(12장 D3), 공급자 프로필(이름·사진) 저장, 공급자 연결 해제(unlink) API 호출.
 
 ## 2. 가능성 검토 (공식 문서, 확인 2026-10-29)
@@ -68,13 +68,13 @@
 ```
 브라우저(서비스 앱)                        공급자(카카오·네이버)               서비스 Worker
  beginSocialSignIn('kakao', …)
-   verifier·state·nonce 생성, localStorage 저장
+   verifier·state 생성·저장, nonce는 socialNonce(verifier)로 파생
    ── 최상위 이동 ──────────────────────▶ /authorize (code_challenge=S256(verifier), state, nonce)
                                            사용자 로그인·동의
    ◀── redirect_uri?code&state ────────────
  readSocialCallback(location.href)
-   저장값 꺼내 지움, state 비교, 10분 지났으면 실패
- api.createSocialSession({provider, code, codeVerifier, nonce, redirectUri}, label)
+   저장값 꺼내 지움, redirect 경로·state 비교, 10분 지났으면 실패
+ api.createSocialSession({provider, code, codeVerifier, redirectUri}, label)
    ── POST /v1/session/social ───────────────────────────────────────────▶ createSocial
                                            ◀── POST /token (client_secret, code_verifier)
                                            ── id_token ──▶ JWKS로 서명·iss·aud·exp·iat·nonce 검증
@@ -113,6 +113,8 @@ export function parseAccountList(raw: string | undefined): Set<string>;
 export interface SocialProviderConfig {
   clientId: string;
   clientSecret?: string;
+  /** 주면 redirectUri가 정확히 일치해야 한다. 빈 배열은 모두 거절, 없으면 형식만 검사. */
+  redirectUris?: readonly string[];
 }
 export interface SocialLoginOptions {
   /** 콤마로 구분한 허용 계정(secret). 'kakao:<sub>', 'naver:<sub>'. 비면 아무도 못 들어온다. */
@@ -123,7 +125,7 @@ export interface SocialLoginOptions {
   fetch?: typeof fetch; // 기본 전역 fetch. 시험에서 바꾼다
 }
 
-// 기존 타입에 더하는 것(모두 선택)
+// 기존 타입에 추가. 옵션·provider 필드는 선택, 새 메서드는 필수.
 interface SessionAuthOptions {
   /* 기존 그대로 */ social?: SocialLoginOptions;
 }
@@ -139,15 +141,17 @@ interface SessionAuth {
   ): Promise<{
     sessionId: string;
     expiresAt: number;
-    user: { sub: string; email: string; provider: SocialProvider };
+    user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string };
   }>;
 }
 SESSION_PATHS.social = '/v1/session/social';
 ```
 
-- `createSocial` 본문: `{ provider, code, codeVerifier, nonce, redirectUri, label? }`.
+- `createSocial` 본문: `{ provider, code, codeVerifier, redirectUri, label? }`. `nonce` 키가 있으면 값과 무관하게 400 `bad-request`로 거절한다.
 - `authenticate(req)`: `social` 옵션이 있고 `Authorization`이 없을 때만 세션 전용 경로를 탄다(5.2). 그 밖에는 지금과 같다.
-- `VerifiedUser.sub`는 카카오·네이버 사용자면 `kakao:<sub>`/`naver:<sub>`, `email`은 카카오 ID 토큰에 이메일이 있으면 그 값(소문자), 없으면 `''`, `authTime`은 세션을 만든 시각이다.
+- `VerifiedUser.sub`는 카카오·네이버 사용자면 `kakao:<sub>`/`naver:<sub>`, `email`은 항상 `''`, `authTime`은 세션을 만든 시각이다.
+
+소셜 이메일은 식별·인가에 쓰지 않는다. 토큰에 문자열 이메일이 있을 때만 생성 응답의 `user.unverifiedEmail`로 소문자화해 준다(검증되지 않은 표시용 값). 없으면 필드를 생략하며 DB·`VerifiedUser`에는 넣지 않는다.
 
 ### 4.2 `/client`
 
@@ -164,16 +168,18 @@ export interface SocialSignInOptions {
   random?: (n: number) => Uint8Array;                               // 기본 crypto.getRandomValues
   now?: () => number;
 }
-/** verifier·state·nonce를 만들어 저장하고 공급자로 이동한다. 저장소를 못 쓰면 reject. */
+/** verifier·state만 무작위로 생성·저장하고 파생 nonce와 함께 공급자로 이동한다. 저장소를 못 쓰면 reject. */
 export function beginSocialSignIn(provider: SocialProvider, o: SocialSignInOptions): Promise<void>;
-/** 순수 함수. 인가 URL을 만든다. */
+/** UTF-8로 base64url(SHA-256('nonce:' + verifier))를 계산한다. 패딩은 없다. */
+export function socialNonce(verifier: string): Promise<string>;
+/** 순수 함수. 인가 URL을 만든다. nonce에는 await socialNonce(verifier)를 넘긴다. */
 export function socialAuthorizeUrl(provider: SocialProvider, p: {
   clientId: string; redirectUri: string; state: string; nonce: string; codeChallenge: string; prompt?: string;
 }): string;
 
 export type SocialCallback =
-  | { ok: true; provider: SocialProvider; code: string; codeVerifier: string; nonce: string; redirectUri: string }
-  | { ok: false; reason: 'state-mismatch' | 'expired' | 'cancelled' | 'provider-error'; provider: SocialProvider; error?: string };
+  | { ok: true; provider: SocialProvider; code: string; codeVerifier: string; redirectUri: string }
+  | { ok: false; reason: 'redirect-mismatch' | 'state-mismatch' | 'expired' | 'cancelled' | 'provider-error'; provider: SocialProvider; error?: string };
 /** 콜백 URL이면 저장값을 꺼내(지우고) 검사한다. 콜백이 아니거나 시작한 로그인이 없으면 null. */
 export function readSocialCallback(url: string | URL, o?: { storage?: …; now?: () => number }): SocialCallback | null;
 /** code·state·error·error_description을 뺀 URL(history.replaceState용). */
@@ -181,19 +187,20 @@ export function stripSocialCallback(url: string | URL): string;
 /** VITE_KAKAO_LOGIN_CLIENT_ID, VITE_NAVER_LOGIN_CLIENT_ID. 둘 다 비면 null. */
 export function readSocialConfig(env): { kakao?: { clientId: string }; naver?: { clientId: string } } | null;
 
-// 기존 타입에 더하는 것(모두 선택)
+// 기존 타입에 추가. 옵션·provider 필드는 선택, 새 메서드는 필수.
 interface SessionClientOptions { /* 기존 그대로 */
   /** ID 토큰이 없을 때(카카오·네이버 로그인) 세션 헤더만 보낸다. 기본 false(지금처럼 missing-token). */
   allowSessionOnly?: boolean;
 }
 type BaseFail = … | { ok: false; kind: 'not-allowed'; account?: string } | …; // account는 Worker가 줄 때만
 interface SessionClient { /* 기존 그대로 */
-  createSocialSession(input: { provider; code; codeVerifier; nonce; redirectUri }, label: string):
-    Promise<ApiResult<{ sessionId: string; expiresAt: number; user: { sub: string; email: string; provider: SocialProvider } }, BaseFail | X>>;
+  createSocialSession(input: { provider; code; codeVerifier; redirectUri }, label: string):
+    Promise<ApiResult<{ sessionId: string; expiresAt: number; user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string } }, BaseFail | X>>;
 }
 ```
 
-- `beginSocialSignIn`이 저장하는 값: `{ provider, state, nonce, verifier, redirectUri, createdAt }`, 키 `@sch0718/firebase-session:social-pending`. 한 번에 하나만 둔다(새로 시작하면 덮어쓴다). 유효 10분(`SOCIAL_PENDING_TTL`).
+- `beginSocialSignIn`이 저장하는 값: `{ provider, state, verifier, redirectUri, createdAt }`, 키 `@sch0718/firebase-session:social-pending`. 한 번에 하나만 둔다(새로 시작하면 덮어쓴다). 유효 10분(`SOCIAL_PENDING_TTL`).
+- `readSocialCallback` 검사 순서: pending 형식 → 저장된 redirectUri URL 파싱 → 현재 URL과 origin·pathname 비교 → state → 만료 → error/code. 경로가 다르면 `redirect-mismatch`, 저장된 URL이 깨졌으면 null이다. 쿼리는 비교하지 않고 성공·실패 모두 저장값을 한 번만 쓴다.
 - 기본 저장소를 sessionStorage가 아닌 localStorage로 둔 이유: 모바일에서 카카오톡·네이버 앱으로 간편 로그인한 뒤 돌아올 때 새 탭으로 열릴 수 있다. 같은 브라우저면 localStorage는 남는다. 값은 한 번 쓰면 지우고 10분 뒤엔 쓰지 않는다.
 - `/client`는 `/worker`를 import하지 않는다. 공급자 이름·인가 URL 상수는 클라이언트에 따로 둔다.
 - `/vite`: 바꾸지 않는다. 공급자로 가는 것은 최상위 이동이라 CSP `connect-src`·`frame-src`·`script-src`에 더할 것이 없다.
@@ -203,14 +210,14 @@ interface SessionClient { /* 기존 그대로 */
 ### 5.1 `createSocial`
 
 1. `social` 옵션이 없으면 404 `not-found`.
-2. 본문 검사(실패 400 `bad-request`): `provider`는 설정된 공급자, `code` `/^[\x21-\x7e]{1,1024}$/`, `codeVerifier` `/^[A-Za-z0-9._~-]{43,128}$/`(RFC 7636), `nonce` `/^[A-Za-z0-9_-]{16,128}$/`, `redirectUri` 2048자 이하 URL, `https:` 또는 `http://localhost|127.0.0.1|[::1]`, 조각(#) 없음. 공급자에 요청하기 전에 검사해 쓸데없는 외부 호출을 막는다.
+2. 본문 검사(실패 400 `bad-request`): `provider`는 설정된 공급자, `code` `/^[\x21-\x7e]{1,1024}$/`, `codeVerifier` `/^[A-Za-z0-9._~-]{43,128}$/`(RFC 7636), `redirectUri` 2048자 이하 URL, `https:` 또는 `http://localhost|127.0.0.1|[::1]`, 조각(#) 없음. 형식 검사 뒤 설정에 `redirectUris`가 있으면 문자열이 정확히 일치해야 한다(빈 배열이면 모두 거절). 본문에 `nonce` 키가 있으면 `Object.hasOwn`으로 거절한다. 모두 공급자 호출 전에 검사한다.
 3. 토큰 요청: `POST tokenUrl`, `application/x-www-form-urlencoded`, `grant_type=authorization_code`, `client_id`, `client_secret`(있으면), `code`, `redirect_uri`, `code_verifier`. 10초 시간 제한(`AbortSignal.timeout`).
    - 네트워크 실패·시간 초과·5xx → 503 `provider-unavailable`.
    - 4xx(`invalid_grant` 등) → 401 `invalid-code`.
    - 200인데 JSON이 아니거나 `id_token`이 문자열이 아니면 401 `invalid-token`(공급자 앱에서 OIDC를 켜지 않았을 때. README에 적는다).
-4. ID 토큰 검증(`verifySocialIdToken`): 헤더 `alg`=RS256·`kid` 문자열, `keys[provider].key(kid)`(못 받으면 503 `provider-unavailable`, 모르는 kid면 401 `invalid-token`), jose `jwtVerify`(`algorithms: ['RS256']`, `issuer`, `audience: clientId`, `clockTolerance: 60초`, `requiredClaims: ['exp','iat','sub']`). 추가로 `iat`이 미래(60초 넘게)거나 `REAUTH_WINDOW`(5분)보다 오래면 거절, `nonce`가 요청 본문의 값과 다르면 거절, `azp`가 있으면 clientId와 같아야 함, `sub`는 1~128자 문자열. 실패는 401 `invalid-token`.
+4. ID 토큰 검증(`verifySocialIdToken`): 헤더 `alg`=RS256·`kid` 문자열, `keys[provider].key(kid)`(못 받으면 503 `provider-unavailable`, 모르는 kid면 401 `invalid-token`), jose `jwtVerify`(`algorithms: ['RS256']`, `issuer`, `audience: clientId`, `clockTolerance: 60초`, `requiredClaims: ['exp','iat','sub']`). 추가로 `iat`이 미래(60초 넘게)거나 `REAUTH_WINDOW`(5분)보다 오래면 거절, `nonce`는 본문 `codeVerifier`로 계산한 `base64url(SHA-256('nonce:' + codeVerifier))`와 같아야 함(없어도 거절). `aud` 배열 길이가 2 이상이면 `azp === clientId` 필수이고, 그 밖에도 `azp`가 있으면 clientId와 같아야 함, `sub`는 1~128자 문자열. 실패는 401 `invalid-token`.
 5. `account = provider + ':' + sub`. `parseAccountList(allowedAccounts)`에 없으면 403 `not-allowed`, 본문에 `account`를 실어 보낸다(방금 그 계정으로 인증한 사람에게만 가는 값이고, 허용 목록에 넣을 값을 알려 준다).
-6. `users` upsert(`firebase_sub = account`, `email = ID 토큰 email 소문자 또는 ''`), 세션 만들기(`sessions.identity = account`). 응답 `{ sessionId, expiresAt, user: { sub: account, email, provider } }`.
+6. `users` upsert(`firebase_sub = account`, `email = ''`), 세션 만들기(`sessions.identity = account`). 이메일이 문자열일 때만 소문자 `unverifiedEmail`을 응답에 넣는다. 응답 `{ sessionId, expiresAt, user: { sub: account, email: '', provider, unverifiedEmail? } }`.
 
 ### 5.2 `authenticate` 세션 전용 경로
 
@@ -243,27 +250,29 @@ ALTER TABLE sessions ADD COLUMN identity TEXT;
 ```
 
 - 카카오·네이버 사용자도 `users` 행을 하나 가진다. `firebase_sub`에 `kakao:<sub>`처럼 접두어를 붙인 공급자 ID를 넣는다(열 이름은 그대로 둔다. Firebase가 만드는 uid에는 `:`가 없어 겹치지 않는다. 서비스가 같은 Firebase 프로젝트에서 커스텀 토큰으로 `kakao:`로 시작하는 uid를 만들면 겹칠 수 있다 → README에 적는다).
-- Google 경로의 SQL은 `identity`를 쓰지 않는다. 그래서 0002를 적용하지 않은 서비스도 Google 로그인은 그대로 된다. `social` 옵션을 켜려면 0002가 필요하다.
+- Google 경로의 SQL은 `identity`를 쓰지 않는다. 그래서 0002를 적용하지 않은 서비스도 Google 로그인은 그대로 된다. `social` 옵션을 켜려면 0002가 필요하다. 소셜 INSERT나 세션 전용 SELECT에서 identity 열 누락 오류가 나면 `@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다` Error로 바꾸고 원인을 cause로 둔다. HttpError가 아니며 다른 DB 오류는 그대로 던진다.
 - `package.json` `exports`에 `./migrations/firebase-session-0002_social_sessions.sql`을 더하고 attw 검사에서 뺀다.
 
 ## 7. 보안
 
-| 위협                                                                         | 대책                                                                                                                                                                                                                    |
-| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 로그인 CSRF(공격자 코드로 피해자를 로그인시킴)                               | `state`를 브라우저 저장소 값과 비교(클라이언트). 저장값은 한 번 쓰면 지운다                                                                                                                                             |
-| 인가 코드 가로채기(URL·기록·Referer로 샌 code를 공격자가 우리 Worker에 제출) | PKCE: `code_verifier`는 시작한 브라우저 저장소에만 있다. Worker는 그것을 공급자에 넘기고, 공급자가 `code_challenge`와 맞춰 본다. 클라이언트는 콜백을 읽은 즉시 `stripSocialCallback`으로 URL을 지우도록 README에 적는다 |
-| ID 토큰 재생                                                                 | `nonce`(시작한 브라우저 저장소에만 있음)를 Worker가 비교. `iat`이 5분보다 오래면 거절                                                                                                                                   |
-| 서명 위조·alg 혼동                                                           | RS256만, `kid`의 공급자 JWKS 키, `iss`·`aud`·`azp` 검사                                                                                                                                                                 |
-| 다른 앱의 토큰                                                               | `aud`=우리 Client ID                                                                                                                                                                                                    |
-| Google 세션을 토큰 없이 사용                                                 | 세션 전용 인증은 `identity IS NOT NULL` 세션만                                                                                                                                                                          |
-| 허용 목록에서 뺀 계정                                                        | 매 요청 다시 확인 → 403                                                                                                                                                                                                 |
-| 공급자 시크릿 노출                                                           | Worker secret에만. 로그·응답에 넣지 않는다. 시크릿만으로는 로그인할 수 없다                                                                                                                                             |
-| 열린 엔드포인트로 공급자 호출 남용                                           | 본문 형식을 먼저 검사. 요청 빈도 제한은 서비스(Cloudflare Rate Limiting 등) 몫으로 README에 적는다                                                                                                                      |
-| JWKS 과다 조회(카카오 차단)                                                  | `Cache-Control: max-age`(없으면 1시간, 최대 24시간) 동안 메모리 캐시. 모르는 `kid`면 마지막 조회 뒤 5분이 지났을 때만 다시 받는다. 동시 요청은 한 번만 받는다                                                           |
-| 세션 원문 노출                                                               | 지금과 같이 D1에는 SHA-256만. 세션 전용이라 세션 원문이 곧 자격 증명이다(쿠키 세션과 같은 수준). 기기에서 지우기·철회는 그대로                                                                                          |
-| XSS로 저장소의 verifier 읽기                                                 | XSS면 세션도 읽힌다. 이 설계로 늘어나는 위험은 없다. 서비스의 CSP가 대책                                                                                                                                                |
+| 위협                                                                         | 대책                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 로그인 CSRF(공격자 코드로 피해자를 로그인시킴)                               | `state`를 브라우저 저장소 값과 비교(클라이언트). 저장값은 한 번 쓰면 지운다                                                                                                                                               |
+| 인가 코드 가로채기(URL·기록·Referer로 샌 code를 공격자가 우리 Worker에 제출) | PKCE: `code_verifier`는 시작한 브라우저 저장소에만 있다. Worker는 그것을 공급자에 넘기고, 공급자가 `code_challenge`와 맞춰 본다. 클라이언트는 콜백을 읽은 즉시 `stripSocialCallback`으로 URL을 지우도록 README에 적는다   |
+| ID 토큰 재생                                                                 | Worker가 `base64url(SHA-256('nonce:' + codeVerifier))`를 계산해 토큰 nonce와 비교. URL의 nonce를 알아도 verifier 없이는 재생할 수 없다. `iat`은 5분 이내                                                                  |
+| 서명 위조·alg 혼동                                                           | RS256만, `kid`의 공급자 JWKS 키, `iss`·`aud`·`azp` 검사                                                                                                                                                                   |
+| 다른 앱의 토큰                                                               | `aud`=우리 Client ID                                                                                                                                                                                                      |
+| Google 세션을 토큰 없이 사용                                                 | 세션 전용 인증은 `identity IS NOT NULL` 세션만                                                                                                                                                                            |
+| 허용 목록에서 뺀 계정                                                        | 매 요청 다시 확인 → 403                                                                                                                                                                                                   |
+| 공급자 시크릿 노출                                                           | Worker secret에만. 로그·응답에 넣지 않는다. 시크릿만으로는 로그인할 수 없다                                                                                                                                               |
+| 열린 엔드포인트로 공급자 호출 남용                                           | 본문 형식을 먼저 검사. 요청 빈도 제한은 서비스(Cloudflare Rate Limiting 등) 몫으로 README에 적는다                                                                                                                        |
+| JWKS 과다 조회(카카오 차단)                                                  | 기본 1시간, 양수 max-age는 10분~24시간. no-store·no-cache·max-age=0·max-age 없음은 기본값. 장애 때 만료 후 최대 6시간 이전 키 사용(until 연장 없음). stale·모르는 kid는 실패 포함 마지막 조회 뒤 5분 간격. 동시 요청 병합 |
+| 세션 원문 노출                                                               | 지금과 같이 D1에는 SHA-256만. 세션 전용이라 세션 원문이 곧 자격 증명이다(쿠키 세션과 같은 수준). 기기에서 지우기·철회는 그대로                                                                                            |
+| XSS로 저장소의 verifier 읽기                                                 | XSS면 세션도 읽힌다. 이 설계로 늘어나는 위험은 없다. 서비스의 CSP가 대책                                                                                                                                                  |
 
-PKCE·nonce·state 셋 다 쓰는 이유: 카카오는 PKCE가 메타데이터에만 있고(2.1) 실제로 검사하는지 확인이 필요하다. PKCE가 무시돼도 nonce가 코드 가로채기를 막는다(가로챈 code의 ID 토큰에는 피해자 브라우저의 nonce가 들어 있고, 공격자는 그 값을 모른다. 단 nonce는 인가 URL에 드러나므로 PKCE보다 약하다 → 14장에서 확인).
+PKCE·nonce·state 셋 다 쓰는 이유: PKCE는 공급자가 인가 코드와 verifier를 묶고, state는 브라우저가 시작한 요청을 확인한다. nonce도 verifier에서 도메인 구분 접두어 `nonce:`를 붙여 파생한다. 카카오가 PKCE를 강제하지 않더라도 Worker가 nonce를 다시 계산하므로 code·nonce만 얻은 공격자는 다른 verifier로 통과할 수 없다. verifier는 브라우저 저장소와 코드 교환 본문에만 두며 nonce는 저장하거나 Worker 본문에 보내지 않는다. `socialAuthorizeUrl`을 직접 쓸 때도 `socialNonce`로 계산한다. 공급자 PKCE 강제 여부는 실제 앱에서 계속 확인한다(14장).
+
+운영 공급자 앱에는 localhost 콜백을 함께 등록하지 않고 개발용 앱(별도 Client ID)을 사용한다. Worker의 `redirectUris`로 정확히 제한하고 콜백 페이지에 `Referrer-Policy: no-referrer` 헤더 또는 `<meta name="referrer" content="no-referrer">`를 둔다. 토큰 교환·JWKS·Google 인증서 요청은 내부 `PROVIDER_TIMEOUT_MS = 10_000`과 지원 여부 가드를 공유한다.
 
 ## 8. 실패 동작
 
@@ -271,26 +280,28 @@ PKCE·nonce·state 셋 다 쓰는 이유: 카카오는 PKCE가 메타데이터�
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | 사용자가 공급자 화면에서 취소                           | —                                                                                                  | `readSocialCallback` → `{ ok: false, reason: 'cancelled' }` (`error=access_denied`) |
 | 공급자가 다른 오류를 돌려줌                             | —                                                                                                  | `reason: 'provider-error'`, `error`에 공급자 코드(영숫자·`_`만, 64자까지)           |
+| redirect origin·pathname 다름                           | —                                                                                                  | `reason: 'redirect-mismatch'`(쿼리는 무시)                                          |
 | state 다름 / 10분 지남                                  | —                                                                                                  | `'state-mismatch'` / `'expired'`                                                    |
 | 시작한 로그인이 없는데 code가 옴                        | —                                                                                                  | `null`(무시)                                                                        |
-| 본문 형식 틀림                                          | 400 `bad-request`                                                                                  | `{ kind: 'server', status: 400 }`                                                   |
+| 본문 형식 틀림·nonce 키 있음·redirectUris 불일치        | 400 `bad-request`                                                                                  | `{ kind: 'server', status: 400 }`                                                   |
 | social 옵션 없음                                        | 404 `not-found`                                                                                    | `{ kind: 'not-found' }`                                                             |
 | 코드 교환 거절                                          | 401 `invalid-code`                                                                                 | `{ kind: 'auth', code: 'invalid-code' }`                                            |
 | ID 토큰 검증 실패                                       | 401 `invalid-token`                                                                                | `{ kind: 'auth', code: 'invalid-token' }` (auth 'none'이라 재시도 없음)             |
 | 허용 목록 밖                                            | 403 `not-allowed` + `account`                                                                      | `{ kind: 'not-allowed', account }`                                                  |
-| 공급자·JWKS 장애                                        | 503 `provider-unavailable`                                                                         | `{ kind: 'limit', code: 'provider-unavailable' }`                                   |
+| 공급자·JWKS 장애(캐시 대체 불가)                        | 503 `provider-unavailable`                                                                         | `{ kind: 'limit', code: 'provider-unavailable' }`                                   |
 | 세션 전용: 세션 없음/Google 세션/철회/만료/허용 목록 밖 | 401 `no-session`/401 `missing-token`/401 `session-revoked`/401 `session-expired`/403 `not-allowed` | `auth`/`auth`/`auth`/`auth`/`not-allowed`                                           |
 
 ## 9. 시험 계획
 
 외부 서비스에 실제로 요청하지 않는다. 가짜 fetch와 시험용 RSA 키로 만든 JWKS·ID 토큰을 쓴다(`test/tokens.ts` 방식).
 
-- `jwksKeys`: 정상 응답 캐시, max-age 반영·상한, 동시 요청 한 번, 모르는 kid 재조회 간격, 네트워크 실패·비 200 → `CertsUnavailableError`, RSA가 아닌 키·`use: 'enc'` 무시.
+- `jwksKeys`: 정상 응답 캐시, 기본 1시간(no-store·no-cache·max-age=0 포함), TTL 하한 10분·상한 24시간, 동시 요청 한 번, 모르는 kid 재조회 간격, 만료·모르는 kid 재조회 실패 시 최대 6시간 이전 키 사용(until 유지), 실패 뒤 5분 재시도 제한, 캐시 없음·stale 한도 경과 → `CertsUnavailableError`, fetch signal, RSA가 아닌 키·`use: 'enc'` 무시.
 - `parseAccountList`: 공백·빈 항목, 접두어 소문자화, ID 대소문자 유지, 모르는 접두어 무시.
-- `createSocial`(가짜 토큰 엔드포인트 + 가짜 키): 성공(카카오·네이버, 이메일 있음·없음), 토큰 요청 본문(form, code_verifier·client_secret·redirect_uri), 서명 위조·모르는 kid·alg none/HS256·iss·aud·azp 다름·exp 지남·iat 미래·iat 5분 초과·nonce 다름·nonce 없음·sub 없음/129자, 토큰 응답 4xx·5xx·네트워크 실패·JSON 아님·id_token 없음, 본문 형식 오류(각 필드), 설정 안 된 공급자, social 옵션 없음 → 404, 허용 목록 밖 → 403 + account, 허용 목록 비어 있음, 공급자 호출 전에 형식 검사(fetch 호출 0회).
+- `createSocial`(가짜 토큰 엔드포인트 + 가짜 키): 성공(카카오·네이버, email은 빈 문자열·표시용 unverifiedEmail은 생성 응답에만 있고 없으면 키 생략), 토큰 요청 본문(form, code_verifier·client_secret·redirect_uri), 서명 위조·모르는 kid·alg none/HS256·iss·aud·azp 다름·exp 지남·iat 미래·iat 5분 초과·다른 verifier의 nonce·nonce 없음·클라이언트 socialNonce와 교차 확인·여러 aud면 azp 필수·공급자별 같은 kid의 다른 키로 서명한 토큰 교차 거절·sub 없음/129자, 토큰 응답 4xx·5xx·네트워크 실패·JSON 아님·id_token 없음, 본문 형식 오류(각 필드·nonce 키 금지·redirectUris 정확한 일치), 설정 안 된 공급자, social 옵션 없음 → 404, 허용 목록 밖 → 403 + account, 허용 목록 비어 있음, 공급자 호출 전에 형식 검사(fetch 호출 0회).
 - `authenticate` 세션 전용: 성공·touch, Google 세션을 토큰 없이 → missing-token, 세션 없음 → no-session, 철회·만료, 허용 목록에서 빠짐 → 403, social 옵션이 없으면 지금과 같이 missing-token이고 DB를 읽지 않음, 토큰과 카카오 세션을 섞으면 no-session, list·revoke가 카카오 세션에서도 동작.
-- 하위 호환: 기존 시험 전부 그대로 통과. 0001만 적용한 DB에서 Google 경로 전체가 동작(0002 없이).
-- 클라이언트: `socialAuthorizeUrl`(카카오·네이버 매개변수, 네이버 `scope=openid`, 인코딩), `beginSocialSignIn`(저장값, S256 challenge가 RFC 7636 예시 벡터와 일치, 이동 URL, 저장소 예외 → reject), `readSocialCallback`(성공·state 다름·만료·취소·공급자 오류·저장값 없음 → null·콜백 아님 → null·한 번 읽으면 지워짐), `stripSocialCallback`, `readSocialConfig`, `createSocialSession`(경로·본문·auth none), `allowSessionOnly`(토큰 없음 → 세션만, 옵션 끔 → missing-token, 세션도 없음 → missing-token, 토큰 있으면 지금과 같음), 403 `account` 매핑.
+- 0001만 적용하고 social을 켠 DB: createSocial·세션 전용 authenticate는 마이그레이션 안내 Error(HttpError 아님), Google create·Bearer authenticate·list·revoke는 동작. 다른 DB 오류는 그대로 던짐.
+- 클라이언트: `socialAuthorizeUrl`(카카오·네이버 매개변수, 네이버 `scope=openid`, 인코딩), `beginSocialSignIn`(nonce 없는 저장값·random 두 번·파생 nonce 인가 URL·SHA-256 고정 벡터, S256 challenge가 RFC 7636 예시 벡터와 일치, 이동 URL, 저장소 예외 → reject), `readSocialCallback`(nonce 없는 성공·redirect 경로/origin 다름·쿼리만 다름·저장 redirectUri 파싱 실패·state 다름·만료·취소·공급자 오류·저장값 없음 → null·콜백 아님 → null·한 번 읽으면 지워짐), `stripSocialCallback`, `readSocialConfig`, `createSocialSession`(경로·본문·auth none), `allowSessionOnly`(토큰 없음 → 세션만, 옵션 끔 → missing-token, 세션도 없음 → missing-token, 토큰 있으면 지금과 같음), 403 `account` 매핑.
+- 오류 시험은 extra를 정확히 비교하고 message·extra·stack에 시크릿·코드·verifier·공급자 반환 id_token이 없는지 확인한다.
 - `compat` fixture(`pnpm-ts59`)에 새 API import를 더해 선언 파일을 검사한다.
 
 ## 10. 크기
@@ -364,4 +375,13 @@ Worker 이름은 서비스가 정한다(패키지는 값만 받는다). 위 이�
 - **카카오 인가 요청에 `scope`를 넣지 않는다.** 카카오 REST API 문서는 `scope`를 추가 동의 요청용으로 설명하고, OIDC를 켠 앱은 "별도의 파라미터 없이" ID 토큰을 준다. 네이버 OIDC만 `scope=openid`를 넣는다(필수).
 - **콜백에 `code`가 비어 있으면** `readSocialCallback`이 `provider-error`를 돌려준다(Worker까지 보내지 않는다).
 - **Worker 크기 한도를 3 kB → 3.8 kB로 올렸다.** `createSessionAuth`가 소셜 코드(`exchangeSocial`·`parseAccountList`)를 참조해 실측 3.59 kB가 됐다. Worker 번들이라 브라우저 첫 로딩 예산과 무관하다. 소셜을 쓰지 않는 서비스까지 이 코드를 싣는 것을 피하려면 소셜 처리를 별도 팩토리로 떼야 하는데, 공개 API가 하나 더 늘어 이번에는 하지 않았다.
-- `/client` 기존 크기 항목은 2.18 kB / 2.2 kB로 여유가 20 B뿐이다. 다음 변경에서 한도를 다시 봐야 한다.
+- `/client` 기존 크기 항목은 2.18 kB / 2.2 kB로 여유가 20 B뿐이다. 보안 검토 반영 뒤에도 2.18 kB로 그대로다(바뀐 것은 타입뿐). 다음 변경에서 한도를 다시 봐야 한다.
+- **소셜 email 정책.** 공급자 이메일의 검증을 보장할 수 없으므로 email과 users.email은 항상 빈 문자열이다. 문자열 이메일은 생성 응답의 선택 필드 unverifiedEmail로만 소문자화하며 VerifiedUser에는 넣지 않는다.
+- **verifier에서 nonce 파생.** nonce = base64url(SHA-256('nonce:' + codeVerifier))로 묶어 code·nonce 유출과 PKCE 강제 여부 불확실성에 대비한다. client의 socialNonce와 Worker는 각각 계산하며 pending·성공 콜백·세션 생성 입력에서 nonce를 없애고 본문 nonce 키는 400으로 거절한다.
+- **JWKS 캐시와 장애 대응.** 기본 1시간, 10분~24시간 하한·상한을 두고 no-store·no-cache·max-age=0은 기본값을 쓴다. 장애 때 until을 늘리지 않고 만료 후 최대 6시간 이전 키를 사용한다. stale에서는 실패를 포함해 5분 간격으로만 조회하고, 모르는 kid 실패도 캐시 조회 결과를 반환해 로그인 장애와 조회 남발을 줄인다.
+- **공급자 요청 제한.** 토큰 교환·JWKS·Google 인증서 fetch에 내부 PROVIDER_TIMEOUT_MS(10초)를 공유해 무한 대기를 막는다. Google 인증서의 다른 캐시 동작은 유지한다.
+- **redirectUris.** 공급자별 선택 허용 목록을 더해 형식 검사 뒤 정확한 문자열 일치를 요구한다. 빈 배열은 모두 거절하고 생략하면 형식만 검사한다. 운영·개발용 공급자 앱을 분리하고 콜백의 no-referrer 정책을 권장한다.
+- **여러 aud의 azp.** aud 배열 길이가 2 이상이면 azp === clientId를 필수로 요구해 토큰의 대상 앱을 명확히 확인한다.
+- **0002 누락 안내.** 소셜 INSERT·세션 전용 SELECT의 identity 열 누락만 마이그레이션 경로를 포함한 Error(cause 유지)로 바꿔 운영 로그에서 원인을 찾게 한다. Google 경로와 다른 DB 오류는 유지한다.
+- **콜백 redirect-mismatch.** pending 형식 검사 다음에 저장 redirectUri와 콜백의 origin·pathname을 비교해 다른 경로로 돌아온 응답을 거절한다. 쿼리는 무시하고 깨진 저장 URL은 null이며 저장값은 실패 때도 한 번만 사용한다.
+- **Worker 크기 한도를 3.8 kB → 4 kB로 올렸다(보안 검토 반영).** verifier 기반 nonce 계산, 여러 `aud`의 `azp` 검사, `redirectUris` 검사, 0002 누락 안내 오류, `googleCerts` 시간 제한이 `createSessionAuth`·`googleCerts` 번들에 들어가 3.84 kB가 됐다. 모두 보안·운영 진단에 필요한 코드이고 Worker 번들이라 브라우저 첫 로딩 예산과 무관하다. 소셜 코드를 별도 팩토리로 떼는 방안은 위 3.8 kB 항목과 같은 이유로 이번에도 하지 않았다.

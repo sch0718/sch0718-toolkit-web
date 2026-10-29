@@ -1,16 +1,18 @@
 // 실제 서비스 없이 공급자 토큰과 JWKS를 만든다.
+import { createHash } from 'node:crypto';
 import { exportJWK } from 'jose';
 import { keys, T0, token } from './tokens.js';
 
 export const CLIENT_ID = 'test-client';
-export const NONCE = 'test_nonce_1234567890';
 export const socialBody = {
   provider: 'kakao' as const,
-  code: 'test-code',
+  code: 'code-ABC123xyz',
   codeVerifier: 'v'.repeat(43),
-  nonce: NONCE,
   redirectUri: 'https://app.example.test/auth/callback',
 };
+export const NONCE = createHash('sha256')
+  .update('nonce:' + socialBody.codeVerifier)
+  .digest('base64url');
 export const publicJwk = {
   ...(await exportJWK(keys.publicKey)),
   kid: 'k1',

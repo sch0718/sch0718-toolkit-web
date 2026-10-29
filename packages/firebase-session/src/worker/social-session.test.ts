@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createTestD1 } from '../../test/d1.js';
 import { CLIENT_ID, socialBody, socialToken } from '../../test/social.js';
 import { certs, ME, PROJECT, T0, token } from '../../test/tokens.js';
+import { HttpError } from './http.js';
 import { createSessionAuth, SESSION_TTL, TOUCH_INTERVAL } from './session.js';
 import type { SocialLoginOptions } from './social.js';
 
@@ -40,7 +41,7 @@ describe('세션 전용 authenticate', () => {
   it('소셜 세션을 인증하고 touch 간격마다 연장한다', async () => {
     const s = setup();
     const { sessionId } = await s.login();
-    const expected = { sub: 'kakao:AbC', email: ME, authTime: T0, provider: 'kakao' };
+    const expected = { sub: 'kakao:AbC', email: '', authTime: T0, provider: 'kakao' };
     expect((await s.auth.authenticate(s.req(sessionId))).user).toEqual(expected);
     s.clock.now += TOUCH_INTERVAL - 1;
     await s.auth.authenticate(s.req(sessionId));
@@ -140,20 +141,56 @@ describe('세션 전용 authenticate', () => {
 });
 
 describe('0001만 적용한 Google DB', () => {
-  it('create·verifiedUser·authenticate·list·revoke는 identity 열 없이 동작한다', async () => {
-    const s = setup(false, true);
-    const bearer = `Bearer ${await token(T0)}`;
-    const user = { sub: 'uid-me', email: ME, authTime: T0 };
-    expect(await s.auth.verifiedUser(s.req(undefined, bearer))).toEqual(user);
-    const { sessionId } = await s.auth.create(s.req(undefined, bearer), { label: '노트북' });
-    const ctx = await s.auth.authenticate(s.req(sessionId, bearer));
-    expect(ctx.user).toEqual(user);
-    expect(await s.auth.list(ctx)).toHaveLength(1);
-    s.clock.now += TOUCH_INTERVAL;
-    await s.auth.authenticate(s.req(sessionId, bearer));
-    expect(await s.auth.revoke(ctx, 'current')).toBe(1);
-    await expect(s.auth.authenticate(s.req(sessionId, bearer))).rejects.toMatchObject({
-      code: 'session-revoked',
-    });
-  });
+  it.each([false, true])(
+    'social %s: create·verifiedUser·authenticate·list·revoke는 identity 열 없이 동작한다',
+    async (social) => {
+      const s = setup(social, true);
+      const bearer = `Bearer ${await token(T0)}`;
+      const user = { sub: 'uid-me', email: ME, authTime: T0 };
+      expect(await s.auth.verifiedUser(s.req(undefined, bearer))).toEqual(user);
+      const { sessionId } = await s.auth.create(s.req(undefined, bearer), { label: '노트북' });
+      const ctx = await s.auth.authenticate(s.req(sessionId, bearer));
+      expect(ctx.user).toEqual(user);
+      expect(await s.auth.list(ctx)).toHaveLength(1);
+      s.clock.now += TOUCH_INTERVAL;
+      await s.auth.authenticate(s.req(sessionId, bearer));
+      expect(await s.auth.revoke(ctx, 'current')).toBe(1);
+      await expect(s.auth.authenticate(s.req(sessionId, bearer))).rejects.toMatchObject({
+        code: 'session-revoked',
+      });
+    },
+  );
+});
+
+describe('social의 0002 마이그레이션 안내', () => {
+  it.each(['createSocial', 'authenticate'] as const)(
+    '%s는 누락된 마이그레이션을 안내한다',
+    async (method) => {
+      const s = setup(true, true);
+      const error: unknown = await (
+        method === 'createSocial' ? s.login() : s.auth.authenticate(s.req('x'.repeat(43)))
+      ).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(HttpError);
+      expect((error as Error).message).toBe(
+        '@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다',
+      );
+      expect((error as Error).cause).toBeInstanceOf(Error);
+    },
+  );
+  it.each(['createSocial', 'authenticate'] as const)(
+    '%s의 다른 DB 오류는 그대로 던진다',
+    async (method) => {
+      const s = setup();
+      const error = new Error('no such column: unrelated');
+      const prepare = s.db.prepare.bind(s.db);
+      vi.spyOn(s.db, 'prepare').mockImplementation((sql) => {
+        if (sql.includes('identity')) throw error;
+        return prepare(sql);
+      });
+      await expect(
+        method === 'createSocial' ? s.login() : s.auth.authenticate(s.req('x'.repeat(43))),
+      ).rejects.toBe(error);
+    },
+  );
 });

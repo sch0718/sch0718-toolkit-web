@@ -22,12 +22,11 @@ export type SocialCallback =
       provider: SocialProvider;
       code: string;
       codeVerifier: string;
-      nonce: string;
       redirectUri: string;
     }
   | {
       ok: false;
-      reason: 'state-mismatch' | 'expired' | 'cancelled' | 'provider-error';
+      reason: 'redirect-mismatch' | 'state-mismatch' | 'expired' | 'cancelled' | 'provider-error';
       provider: SocialProvider;
       error?: string;
     };
@@ -63,6 +62,15 @@ function base64url(bytes: Uint8Array): string {
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+const SOCIAL_NONCE_PREFIX = 'nonce:';
+async function sha256base64url(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return base64url(new Uint8Array(digest));
+}
+/** 인가 요청의 nonce를 PKCE verifier에 묶는다. */
+export function socialNonce(verifier: string): Promise<string> {
+  return sha256base64url(SOCIAL_NONCE_PREFIX + verifier);
+}
 export async function beginSocialSignIn(
   provider: SocialProvider,
   o: SocialSignInOptions,
@@ -70,20 +78,18 @@ export async function beginSocialSignIn(
   const random = o.random ?? ((n: number) => crypto.getRandomValues(new Uint8Array(n)));
   const verifier = base64url(random(32));
   const state = base64url(random(32));
-  const nonce = base64url(random(32));
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const nonce = await socialNonce(verifier);
   const url = socialAuthorizeUrl(provider, {
     ...o,
     state,
     nonce,
-    codeChallenge: base64url(new Uint8Array(digest)),
+    codeChallenge: await sha256base64url(verifier),
   });
   (o.storage ?? localStorage).setItem(
     PENDING_KEY,
     JSON.stringify({
       provider,
       state,
-      nonce,
       verifier,
       redirectUri: o.redirectUri,
       createdAt: (o.now ?? Date.now)(),
@@ -96,7 +102,8 @@ export function readSocialCallback(
   url: string | URL,
   o: { storage?: SocialStorage; now?: () => number } = {},
 ): SocialCallback | null {
-  const params = new URL(url).searchParams;
+  const current = new URL(url);
+  const params = current.searchParams;
   if (!params.has('code') && !params.has('error')) return null;
   let raw: unknown;
   try {
@@ -114,12 +121,19 @@ export function readSocialCallback(
   if (
     (provider !== 'kakao' && provider !== 'naver') ||
     typeof p['state'] !== 'string' ||
-    typeof p['nonce'] !== 'string' ||
     typeof p['verifier'] !== 'string' ||
     typeof p['redirectUri'] !== 'string' ||
     typeof p['createdAt'] !== 'number'
   )
     return null;
+  let redirect: URL;
+  try {
+    redirect = new URL(p['redirectUri']);
+  } catch {
+    return null;
+  }
+  if (current.origin !== redirect.origin || current.pathname !== redirect.pathname)
+    return { ok: false, reason: 'redirect-mismatch', provider };
   if (params.get('state') !== p['state']) return { ok: false, reason: 'state-mismatch', provider };
   if ((o.now ?? Date.now)() - p['createdAt'] >= SOCIAL_PENDING_TTL)
     return { ok: false, reason: 'expired', provider };
@@ -140,7 +154,6 @@ export function readSocialCallback(
     provider,
     code,
     codeVerifier: p['verifier'],
-    nonce: p['nonce'],
     redirectUri: p['redirectUri'],
   };
 }

@@ -21,13 +21,17 @@ describe('jwksKeys', () => {
     expect(result[0]).toBeInstanceOf(CryptoKey);
     expect(result[1]).toBe(result[0]);
     expect(result[2]).toBeNull();
+    expect(f).toHaveBeenCalledWith('https://keys.test', {
+      signal: expect.any(AbortSignal),
+    });
     expect(f).toHaveBeenCalledTimes(1);
   });
   it.each([
-    [10, 10_000],
+    [60, 600_000],
     [undefined, 3_600_000],
+    [0, 3_600_000],
     [172800, 86_400_000],
-  ])('max-age %s, 상한 24시간', async (age, ttl) => {
+  ])('max-age %s, 하한 10분·상한 24시간', async (age, ttl) => {
     let now = T0;
     const f = vi.fn(async () => reply(age));
     const c = jwksKeys('https://keys.test', f, () => now);
@@ -80,5 +84,71 @@ describe('jwksKeys', () => {
     const c = jwksKeys('https://keys.test', f);
     for (const kid of ['enc', 'ec', 'hs', 'broken']) expect(await c.key(kid)).toBeNull();
     expect(await c.key('k1')).toBeInstanceOf(CryptoKey);
+  });
+});
+
+describe('JWKS 캐시 정책과 장애 복구', () => {
+  it.each(['no-store', 'no-cache', 'no-cache, no-store, max-age=0', 'no-store, max-age=60'])(
+    '%s도 기본 1시간 캐시한다',
+    async (control) => {
+      let now = T0;
+      const f = vi.fn(async () =>
+        Response.json(
+          { keys: [jwk] },
+          {
+            headers: { 'Cache-Control': control },
+          },
+        ),
+      );
+      const c = jwksKeys('https://keys.test', f, () => now);
+      await c.key('k1');
+      now += 3_599_999;
+      await c.key('k1');
+      expect(f).toHaveBeenCalledTimes(1);
+      now++;
+      await c.key('k1');
+      expect(f).toHaveBeenCalledTimes(2);
+    },
+  );
+  it('만료 후 실패하면 이전 키를 쓰고 5분마다 재시도하며 6시간 경계에서 중단한다', async () => {
+    let now = T0;
+    const f = vi.fn(async () => reply());
+    const c = jwksKeys('https://keys.test', f, () => now);
+    const key = await c.key('k1');
+    f.mockRejectedValue(new Error('network'));
+    now += 3_600_000;
+    expect(await c.key('k1')).toBe(key);
+    expect(f).toHaveBeenCalledTimes(2);
+    now += 299_999;
+    expect(await c.key('k1')).toBe(key);
+    expect(f).toHaveBeenCalledTimes(2);
+    now++;
+    expect(await c.key('k1')).toBe(key);
+    expect(f).toHaveBeenCalledTimes(3);
+    now = T0 + 3_600_000 + 6 * 3_600_000 - 1;
+    expect(await c.key('k1')).toBe(key);
+    now++;
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(5);
+  });
+  it('모르는 kid 재조회가 실패하면 유효한 캐시 조회 결과를 돌려준다', async () => {
+    let now = T0;
+    const f = vi.fn(async () => reply());
+    const c = jwksKeys('https://keys.test', f, () => now);
+    const key = await c.key('k1');
+    f.mockRejectedValue(new Error('network'));
+    now += 300_000;
+    expect(await c.key('unknown')).toBeNull();
+    expect(await c.key('k1')).toBe(key);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+  it('캐시가 없으면 실패 뒤에도 매번 다시 시도한다', async () => {
+    const f = vi.fn(async () => {
+      throw new Error('network');
+    });
+    const c = jwksKeys('https://keys.test', f, () => T0);
+    for (let i = 0; i < 2; i++)
+      await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(2);
   });
 });

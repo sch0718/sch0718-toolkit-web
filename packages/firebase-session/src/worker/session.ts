@@ -71,7 +71,7 @@ export interface SessionAuth {
   ): Promise<{
     sessionId: string;
     expiresAt: number;
-    user: { sub: string; email: string; provider: SocialProvider };
+    user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string };
   }>;
   /** 토큰 검증 + 허용 목록. 실패는 HttpError(401·403)로 바꾼다. */
   verifiedUser(req: Request): Promise<VerifiedUser>;
@@ -91,6 +91,24 @@ export function cleanLabel(v: unknown, fallback: string): string {
   // eslint-disable-next-line no-control-regex
   const s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
   return [...s].slice(0, LABEL_MAX).join('') || fallback;
+}
+
+async function socialQuery<T>(enabled: boolean, query: () => Promise<T>): Promise<T> {
+  try {
+    return await query();
+  } catch (e) {
+    if (
+      enabled &&
+      e instanceof Error &&
+      /no such column|has no column named/i.test(e.message) &&
+      /identity/i.test(e.message)
+    )
+      throw new Error(
+        '@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다',
+        { cause: e },
+      );
+    throw e;
+  }
 }
 
 export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
@@ -128,21 +146,23 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       .first<{ id: string }>();
     if (!row) throw new Error('users upsert returned no row');
     const sessionId = base64url(o.random(32));
-    await o.db
-      .prepare(
-        identity === undefined
-          ? 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)'
-          : 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at, identity) VALUES (?, ?, ?, ?, ?, ?)',
-      )
-      .bind(
-        await sha256Hex(sessionId),
-        row.id,
-        label,
-        now,
-        now,
-        ...(identity === undefined ? [] : [identity]),
-      )
-      .run();
+    await socialQuery(identity !== undefined, async () =>
+      o.db
+        .prepare(
+          identity === undefined
+            ? 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)'
+            : 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at, identity) VALUES (?, ?, ?, ?, ?, ?)',
+        )
+        .bind(
+          await sha256Hex(sessionId),
+          row.id,
+          label,
+          now,
+          now,
+          ...(identity === undefined ? [] : [identity]),
+        )
+        .run(),
+    );
     return { sessionId, expiresAt: now + SESSION_TTL };
   }
 
@@ -173,25 +193,27 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       if (!raw || !/^[A-Za-z0-9_-]{43}$/.test(raw))
         throw new HttpError(401, sessionOnly ? 'missing-token' : 'no-session');
       const hash = await sha256Hex(raw);
-      const row = await o.db
-        .prepare(
-          sessionOnly
-            ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
+      const row = await socialQuery(!!sessionOnly, () =>
+        o.db
+          .prepare(
+            sessionOnly
+              ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
            s.identity, s.created_at AS createdAt, u.email
            FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = ?`
-            : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
+              : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
            FROM sessions s JOIN users u ON u.id = s.user_id
            WHERE s.id_hash = ? AND u.firebase_sub = ?`,
-        )
-        .bind(hash, ...(user ? [user.sub] : []))
-        .first<{
-          userId: string;
-          lastUsedAt: number;
-          revokedAt: number | null;
-          identity: string | null;
-          createdAt: number;
-          email: string;
-        }>();
+          )
+          .bind(hash, ...(user ? [user.sub] : []))
+          .first<{
+            userId: string;
+            lastUsedAt: number;
+            revokedAt: number | null;
+            identity: string | null;
+            createdAt: number;
+            email: string;
+          }>(),
+      );
       if (!row) throw new HttpError(401, 'no-session');
       if (sessionOnly && row.identity === null) throw new HttpError(401, 'missing-token');
       if (row.revokedAt !== null) throw new HttpError(401, 'session-revoked');

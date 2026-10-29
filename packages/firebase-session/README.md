@@ -74,7 +74,7 @@ Google은 지금처럼 Firebase ID 토큰과 세션을 함께 검사합니다. �
 
 ### 마이그레이션과 Worker
 
-기존 0001 다음에 패키지의 `migrations/firebase-session-0002_social_sessions.sql`을 복사해 적용합니다(서비스의 파일 번호 순서에 맞춰 이름을 붙입니다). 세션에 `identity` 열을 추가합니다. Google만 쓰는 서비스는 0002나 새 옵션 없이 그대로 쓸 수 있습니다. 소셜 옵션을 켜기 전에 0002를 적용해야 합니다.
+기존 0001 다음에 패키지의 `migrations/firebase-session-0002_social_sessions.sql`을 복사해 적용합니다(서비스의 파일 번호 순서에 맞춰 이름을 붙입니다). 세션에 `identity` 열을 추가합니다. Google만 쓰는 서비스는 0002나 새 옵션 없이 그대로 쓸 수 있습니다. **소셜 옵션을 켜기 전에 0002를 적용해야 합니다.** 빠뜨리면 `createSocial`과 세션 전용 `authenticate`가 `@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다` 오류를 던집니다. 클라이언트용 `HttpError`가 아니므로 서비스 로그에서 확인합니다.
 
 ```ts
 import {
@@ -104,8 +104,16 @@ const sessions = createSessionAuth({
   uuid: () => crypto.randomUUID(),
   social: {
     allowedAccounts: env.ALLOWED_ACCOUNTS, // 비면 아무도 로그인하지 못함
-    kakao: { clientId: env.KAKAO_CLIENT_ID, clientSecret: env.KAKAO_CLIENT_SECRET },
-    naver: { clientId: env.NAVER_CLIENT_ID, clientSecret: env.NAVER_CLIENT_SECRET },
+    kakao: {
+      clientId: env.KAKAO_CLIENT_ID,
+      clientSecret: env.KAKAO_CLIENT_SECRET,
+      redirectUris: ['https://app.example.test/auth/callback'],
+    },
+    naver: {
+      clientId: env.NAVER_CLIENT_ID,
+      clientSecret: env.NAVER_CLIENT_SECRET,
+      redirectUris: ['https://app.example.test/auth/callback'],
+    },
     keys,
   },
 });
@@ -125,7 +133,11 @@ try {
 
 쓰는 공급자만 `social.kakao`·`social.naver`에 넣습니다. `social`이 없으면 `createSocial`은 404 `not-found`입니다. 토큰 엔드포인트의 거절은 401 `invalid-code`, ID 토큰 검증 실패는 401 `invalid-token`, 공급자·JWKS 장애나 코드 교환 시간 초과(10초)는 503 `provider-unavailable`입니다. 200 응답에 `id_token`이 없으면 OIDC 활성화 여부를 확인하세요. 클라이언트는 503을 `{ kind: 'limit', code: 'provider-unavailable' }`로 돌려줍니다.
 
-허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 카카오 토큰에 있으면 소문자 이메일이고 없으면 빈 문자열입니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
+`redirectUris`를 주면 본문 `redirectUri`가 목록의 문자열 중 하나와 정확히 같아야 합니다(쿼리·끝 슬래시·대소문자 포함). 빈 배열이면 모두 거절하고, 생략하면 기존 URL 형식만 검사합니다. 운영 앱에는 localhost 콜백을 함께 등록하지 말고 개발용 공급자 앱(별도 Client ID)을 따로 쓰는 것을 권장합니다.
+
+JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없으면 매번 시도합니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
+
+허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 항상 빈 문자열입니다. 소셜 사용자의 이메일은 식별·인가에 쓰지 않습니다. 공급자 토큰에 문자열 이메일이 있으면 `createSocial`/`createSocialSession` 결과의 `user.unverifiedEmail`로만 소문자화해 줍니다(검증되지 않은 값, 표시용). 없으면 필드 자체를 넣지 않습니다. DB에 저장하거나 `VerifiedUser`에 더하지 않습니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
 
 ### 브라우저
 
@@ -163,7 +175,7 @@ if (callback?.ok) {
     showAccount(result.account);
   }
 } else if (callback) {
-  // state-mismatch / expired / cancelled / provider-error: 서비스가 안내
+  // redirect-mismatch / state-mismatch / expired / cancelled / provider-error: 서비스가 안내
 }
 
 // 로그인 버튼에서 최상위 이동. 네이버도 같은 방법입니다.
@@ -175,9 +187,9 @@ if (socialConfig?.kakao) {
 }
 ```
 
-`beginSocialSignIn()`은 PKCE S256 verifier·state·nonce를 만들어 localStorage의 `@sch0718/firebase-session:social-pending`에 저장하고 이동합니다. 저장소를 쓸 수 없으면 reject합니다. 한 번에 하나의 로그인만 보관하며 10분 뒤 만료됩니다. `storage`, `navigate`, `random`, `now`를 주입할 수 있고 `prompt`는 지정했을 때만 공급자에 넘깁니다. `socialAuthorizeUrl()`로 인가 URL만 만들 수도 있습니다.
+`beginSocialSignIn()`은 무작위 PKCE S256 verifier·state를 만들고 nonce는 `socialNonce(verifier)`로 파생합니다. 식은 `base64url(SHA-256('nonce:' + verifier))`이며 UTF-8, 패딩 없는 base64url을 씁니다. localStorage의 `@sch0718/firebase-session:social-pending`에는 `{ provider, state, verifier, redirectUri, createdAt }`만 저장하고 이동합니다. 저장소를 쓸 수 없으면 reject합니다. 한 번에 하나의 로그인만 보관하며 10분 뒤 만료됩니다. `storage`, `navigate`, `random`, `now`를 주입할 수 있고 `prompt`는 지정했을 때만 공급자에 넘깁니다. `socialAuthorizeUrl()`로 인가 URL만 만들 수도 있습니다. 이때 `/client`가 내보내는 `socialNonce(verifier): Promise<string>`로 nonce를 계산해 넘깁니다. Worker도 본문의 verifier로 nonce를 다시 계산해 토큰과 비교합니다. 성공 콜백과 `createSocialSession` 입력에는 nonce가 없으며, Worker 요청 본문에 `nonce` 키를 보내면 값과 무관하게 400 `bad-request`입니다.
 
-`readSocialCallback()`은 콜백이면 저장값을 먼저 지우고 state와 만료를 검사합니다. 성공·실패 모두 한 번만 읽을 수 있습니다. 시작한 로그인이 없거나 콜백 URL이 아니면 null입니다. 앱 전환 후 다른 브라우저로 돌아오면 저장값이 없어 다시 로그인을 시작해야 합니다. `stripSocialCallback()`은 `code`, `state`, `error`, `error_description`만 지운 URL을 돌려줍니다. **콜백을 읽은 즉시 주소를 지우세요.**
+`readSocialCallback()`은 콜백이면 저장값을 먼저 지운 뒤 pending 형식 → redirect 경로 → state → 만료 → error/code 순으로 검사합니다. 현재 URL과 저장된 `redirectUri`의 origin·pathname이 다르면 `redirect-mismatch`이고 쿼리 차이는 무시합니다. 저장된 redirectUri를 URL로 파싱할 수 없으면 null입니다. 성공·실패 모두 한 번만 읽을 수 있습니다. 시작한 로그인이 없거나 콜백 URL이 아니면 null입니다. 앱 전환 후 다른 브라우저로 돌아오면 저장값이 없어 다시 로그인을 시작해야 합니다. `stripSocialCallback()`은 `code`, `state`, `error`, `error_description`만 지운 URL을 돌려줍니다. **콜백을 읽은 즉시 주소를 지우세요.** 콜백 페이지에는 `Referrer-Policy: no-referrer` 헤더 또는 `<meta name="referrer" content="no-referrer">`를 둡니다.
 
 `allowSessionOnly`의 기본값은 false입니다. true이고 기본 `auth: 'session'` 요청에 ID 토큰이 없으면 세션 헤더만 붙입니다. 세션도 없으면 `missing-token`입니다. 토큰이 있으면 기존처럼 토큰과 세션을 함께 보냅니다. `createSocialSession()`은 자격 증명 없이 보내며 코드 교환 실패를 재시도하지 않습니다.
 

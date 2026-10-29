@@ -13,6 +13,7 @@ import {
   readSocialCallback,
   stripSocialCallback,
   socialAuthorizeUrl,
+  socialNonce,
   readSocialConfig,
   SOCIAL_AUTHORIZE_URLS,
   type SocialCallback,
@@ -118,7 +119,10 @@ export const width: number = textWidth('가나', 12);
 
 // 소셜 공개 API 선언을 소비자 TypeScript 5.9에서 검사한다(실행하지 않는다).
 const socialProvider: SocialProvider = 'kakao';
-const providerConfig: SocialProviderConfig = { clientId: 'public-id' };
+const providerConfig: SocialProviderConfig = {
+  clientId: 'public-id',
+  redirectUris: ['https://app.test/callback'],
+};
 export const socialOptions: SocialLoginOptions = {
   allowedAccounts: undefined,
   kakao: providerConfig,
@@ -150,3 +154,7 @@ export const socialSession: Promise<unknown> = sessions.createSocial(
   {},
 );
 export const deniedAccount: BaseFail = { ok: false, kind: 'not-allowed', account: 'kakao:123' };
+
+export const derivedNonce: Promise<string> = socialNonce('v'.repeat(43));
+export const redirectFailure: Extract<SocialCallback, { ok: false }>['reason'] =
+  'redirect-mismatch';

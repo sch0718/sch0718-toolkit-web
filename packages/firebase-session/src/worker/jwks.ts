@@ -1,8 +1,12 @@
 // 공급자 JWKS를 isolate 메모리에 캐시한다. 모르는 kid로 조회를 남발하지 않는다.
+import { PROVIDER_TIMEOUT_MS } from './http.js';
 import { importJWK, type CryptoKey as JoseKey } from 'jose';
 import { CertsUnavailableError, type CertSource } from './certs.js';
 
-const HOUR = 60 * 60 * 1000;
+const JWKS_DEFAULT_TTL = 60 * 60 * 1000;
+const JWKS_MIN_TTL = 10 * 60 * 1000;
+const JWKS_MAX_TTL = 24 * JWKS_DEFAULT_TTL;
+const JWKS_STALE_MAX = 6 * JWKS_DEFAULT_TTL;
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 export function jwksKeys(
@@ -17,7 +21,11 @@ export function jwksKeys(
   async function load(): Promise<void> {
     lastFetch = now();
     try {
-      const res = await fetchImpl(url);
+      const res = await fetchImpl(url, {
+        ...(typeof AbortSignal.timeout === 'function' && {
+          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        }),
+      });
       if (!res.ok) throw new Error();
       const body: unknown = await res.json();
       if (!body || typeof body !== 'object' || !('keys' in body) || !Array.isArray(body.keys))
@@ -40,10 +48,15 @@ export function jwksKeys(
           /* 깨진 키 하나 때문에 나머지 키까지 버리지 않는다. */
         }
       }
-      const m = /max-age=(\d+)/i.exec(res.headers.get('Cache-Control') ?? '');
-      const ttl = m ? Math.min(Number(m[1]) * 1000, 24 * HOUR) : HOUR;
+      const control = res.headers.get('Cache-Control') ?? '';
+      const age = Number(/max-age=(\d+)/i.exec(control)?.[1] ?? 0) * 1000;
+      const ttl =
+        /\bno-store\b|\bno-cache\b/i.test(control) || !age
+          ? JWKS_DEFAULT_TTL
+          : Math.max(JWKS_MIN_TTL, Math.min(age, JWKS_MAX_TTL));
       cached = { until: now() + ttl, keys };
     } catch {
+      if (cached && now() < cached.until + JWKS_STALE_MAX) return;
       throw new CertsUnavailableError('jwks unavailable');
     }
   }
@@ -52,8 +65,8 @@ export function jwksKeys(
     async key(kid) {
       if (
         !cached ||
-        now() >= cached.until ||
-        (!cached.keys.has(kid) && now() - lastFetch >= REFRESH_INTERVAL)
+        now() >= cached.until + JWKS_STALE_MAX ||
+        ((now() >= cached.until || !cached.keys.has(kid)) && now() - lastFetch >= REFRESH_INTERVAL)
       ) {
         inflight ??= load().finally(() => {
           inflight = null;
