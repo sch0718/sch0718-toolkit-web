@@ -135,7 +135,7 @@ try {
 
 `redirectUris`를 주면 본문 `redirectUri`가 목록의 문자열 중 하나와 정확히 같아야 합니다(쿼리·끝 슬래시·대소문자 포함). 빈 배열이면 모두 거절하고, 생략하면 기존 URL 형식만 검사합니다. 운영 앱에는 localhost 콜백을 함께 등록하지 말고 개발용 공급자 앱(별도 Client ID)을 따로 쓰는 것을 권장합니다.
 
-JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초 동안 다시 조회하지 않고 바로 `CertsUnavailableError`를 던집니다(negative cache). 30초가 지나면 재시도하고 성공하면 실패 기록을 지웁니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
+JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초 동안 다시 조회하지 않고 바로 `CertsUnavailableError`를 던집니다(negative cache). 30초가 지나면 재시도하며, 성공한 뒤에는 다음 실패까지 negative cache의 영향이 없습니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
 
 허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 항상 빈 문자열입니다. 소셜 사용자의 이메일은 식별·인가에 쓰지 않습니다. 공급자 토큰에 문자열 이메일이 있으면 `createSocial`/`createSocialSession` 결과의 `user.unverifiedEmail`로만 소문자화해 줍니다(검증되지 않은 값, 표시용). 없으면 필드 자체를 넣지 않습니다. DB에 저장하거나 `VerifiedUser`에 더하지 않습니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
 
@@ -186,6 +186,8 @@ if (socialConfig?.kakao) {
   });
 }
 ```
+
+`createSocialSession` 결과가 `kind: 'limit'`(503 `provider-unavailable`)이면 pending 값은 이미 지워졌으므로 “잠시 뒤 처음부터 다시 로그인”하도록 안내합니다.
 
 `beginSocialSignIn()`은 무작위 PKCE S256 verifier·state를 만들고 nonce는 `socialNonce(verifier)`로 파생합니다. 식은 `base64url(SHA-256('nonce:' + verifier))`이며 UTF-8, 패딩 없는 base64url을 씁니다. localStorage의 `@sch0718/firebase-session:social-pending`에는 `{ provider, state, verifier, redirectUri, createdAt }`만 저장하고 이동합니다. 저장소를 쓸 수 없으면 reject합니다. 한 번에 하나의 로그인만 보관하며 10분 뒤 만료됩니다. `storage`, `navigate`, `random`, `now`를 주입할 수 있고 `prompt`는 지정했을 때만 공급자에 넘깁니다. `socialAuthorizeUrl()`로 인가 URL만 만들 수도 있습니다. 이때 `/client`가 내보내는 `socialNonce(verifier): Promise<string>`로 nonce를 계산해 넘깁니다. Worker도 본문의 verifier로 nonce를 다시 계산해 토큰과 비교합니다. 성공 콜백과 `createSocialSession` 입력에는 nonce가 없으며, Worker 요청 본문에 `nonce` 키를 보내면 값과 무관하게 400 `bad-request`입니다.
 

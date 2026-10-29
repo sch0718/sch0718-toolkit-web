@@ -163,6 +163,18 @@ describe('JWKS 캐시 정책과 장애 복구', () => {
     await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
     expect(f).toHaveBeenCalledTimes(2);
   });
+  it('캐시 없이 실패한 뒤 시계가 뒤로 가면 바로 다시 조회한다', async () => {
+    let now = T0;
+    const f = vi.fn(async () => {
+      throw new Error('network');
+    });
+    const c = jwksKeys('https://keys.test', f, () => now);
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(1);
+    now -= 3_600_000;
+    await expect(c.key('k1')).rejects.toBeInstanceOf(CertsUnavailableError);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
   it.each([false, true])('stale 한도 경과 %s: 실패 30초 뒤 성공하면 복구한다', async (stale) => {
     let now = T0;
     const f = vi.fn(async () => reply());

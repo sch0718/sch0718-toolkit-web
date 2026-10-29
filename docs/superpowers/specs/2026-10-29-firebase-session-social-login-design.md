@@ -387,4 +387,4 @@ Worker 이름은 서비스가 정한다(패키지는 값만 받는다). 위 이�
 - **Worker 크기 한도를 3.8 kB → 4 kB로 올렸다(보안 검토 반영).** verifier 기반 nonce 계산, 여러 `aud`의 `azp` 검사, `redirectUris` 검사, 0002 누락 안내 오류, `googleCerts` 시간 제한이 `createSessionAuth`·`googleCerts` 번들에 들어가 3.84 kB가 됐다. 모두 보안·운영 진단에 필요한 코드이고 Worker 번들이라 브라우저 첫 로딩 예산과 무관하다. 소셜 코드를 별도 팩토리로 떼는 방안은 위 3.8 kB 항목과 같은 이유로 이번에도 하지 않았다.
 
 - **토큰 엔드포인트 429 분류(2026-10-29).** 429는 코드 문제가 아니라 공급자 요청 한도이므로 401 `invalid-code` 대신 503 `provider-unavailable`로 처리한다. 나머지 4xx는 401 `invalid-code`를 유지한다.
-- **JWKS negative cache 30초(2026-10-29).** 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초간 공급자를 다시 부르지 않고 바로 `CertsUnavailableError`를 던진다. 장애 때 로그인 요청이 카카오·네이버 JWKS를 두드리지 않게 하며, 30초 뒤에는 재시도하고 성공하면 실패 기록을 지운다. Google 인증서는 그대로 둔다.
+- **JWKS negative cache 30초(2026-10-29).** 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초간 공급자를 다시 부르지 않고 바로 `CertsUnavailableError`를 던진다. 장애 때 로그인 요청이 카카오·네이버 JWKS를 두드리지 않게 하며, 30초 뒤에는 재시도하고 성공한 뒤에는 다음 실패까지 negative cache의 영향이 없다. Google 인증서는 그대로 둔다.

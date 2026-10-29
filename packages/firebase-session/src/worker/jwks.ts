@@ -67,12 +67,13 @@ export function jwksKeys(
 
   return {
     async key(kid) {
+      const t = now();
       if (
         !cached ||
         now() >= cached.until + JWKS_STALE_MAX ||
         ((now() >= cached.until || !cached.keys.has(kid)) && now() - lastFetch >= REFRESH_INTERVAL)
       ) {
-        if (now() - failedAt < JWKS_NEGATIVE_TTL)
+        if (failedAt <= t && t - failedAt < JWKS_NEGATIVE_TTL)
           throw new CertsUnavailableError('jwks unavailable');
         inflight ??= load().finally(() => {
           inflight = null;
