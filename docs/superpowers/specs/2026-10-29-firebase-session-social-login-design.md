@@ -42,17 +42,17 @@
 
 출처: [Firebase OIDC 웹 로그인](https://firebase.google.com/docs/auth/web/openid-connect), [Identity Platform 가격](https://cloud.google.com/identity-platform/pricing), [Firebase 커스텀 토큰 만들기](https://firebase.google.com/docs/auth/admin/create-custom-tokens), [Google: 임베디드 웹뷰의 OAuth 차단](https://developers.googleblog.com/upcoming-security-changes-to-googles-oauth-20-authorization-endpoint-in-embedded-webviews/). 2026-10-29 확인.
 
-| 항목 | (a) Firebase OIDC 제공자 | (b) Worker 검증 → Firebase 커스텀 토큰 | **(c) Worker 검증 → D1 세션 직접(추천)** |
-| --- | --- | --- | --- |
-| 카카오 | 가능(OIDC) | 가능 | 가능 |
-| 네이버 | 가능(2.2의 OIDC). 다만 Firebase가 네이버 OIDC와 맞는지(예: `auth_time` 없음) 확인 필요 | 가능 | 가능 |
-| 필요 조건 | "OpenID Connect authentication is only available in upgraded projects" → Identity Platform 업그레이드. OIDC는 Tier 2: 월 50 MAU 무료, 넘으면 MAU당 $0.015 | 서비스 계정 개인키(RS256)를 Worker secret에 둔다. Identity Toolkit의 `signInWithCustomToken` | 공급자 Client ID·시크릿을 Worker secret에 둔다(세 안 공통) |
-| 비밀값의 피해 범위 | 시크릿은 Firebase 콘솔에 | **서비스 계정 키가 새면 그 Firebase 프로젝트의 아무 uid로나 로그인 토큰을 만들 수 있다**(Google 사용자 포함). 키는 기본 만료가 없어 회전을 직접 해야 한다 | 공급자 시크릿이 새도 그것만으로는 로그인할 수 없다(사용자 인가 코드가 필요) |
-| 패키지 변경 | 클라이언트에 OIDC 제공자 로그인 추가, Worker는 `firebase.sign_in_provider`별 허용 판단(이메일 없음 → 허용 목록 변경 필요) | Worker에 코드 교환·커스텀 토큰 발급, 검증기는 이메일 없는 custom 사용자 허용 | Worker에 코드 교환·ID 토큰 검증·세션 전용 인증, 클라이언트에 리다이렉트 도우미·세션 전용 요청 |
-| 매 요청 인증 | Firebase ID 토큰 + 세션(지금과 같음) | Firebase ID 토큰 + 세션(지금과 같음) | 기기 세션만(256비트 무작위, D1에는 해시). 허용 목록은 매 요청 다시 확인 |
-| iOS Safari·홈 화면 PWA | Firebase 팝업/리다이렉트를 쓰므로 지금 Google과 같은 서드파티 저장소 문제가 있다(로그인 도우미로 완화) | 공급자 리다이렉트는 최상위 이동이라 영향 없음. `signInWithCustomToken`은 API 호출 | 최상위 이동과 같은 출처 저장소만 쓴다. 서드파티 저장소·iframe 없음 |
-| 카카오톡 인앱 브라우저 | Firebase 팝업이 인앱 브라우저에서 막힐 수 있다 | 공급자 리다이렉트는 동작 | 공급자 리다이렉트는 동작. (참고: Google 로그인은 임베디드 웹뷰에서 `disallowed_useragent`로 막힌다. 카카오 로그인은 이 경우의 대안이 된다) |
-| 로그인할 때 받는 JS | Firebase SDK 청크 | Firebase SDK 청크 | 없음(Firebase를 불러오지 않음) |
+| 항목                   | (a) Firebase OIDC 제공자                                                                                                                                  | (b) Worker 검증 → Firebase 커스텀 토큰                                                                                                                    | **(c) Worker 검증 → D1 세션 직접(추천)**                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 카카오                 | 가능(OIDC)                                                                                                                                                | 가능                                                                                                                                                      | 가능                                                                                                                                       |
+| 네이버                 | 가능(2.2의 OIDC). 다만 Firebase가 네이버 OIDC와 맞는지(예: `auth_time` 없음) 확인 필요                                                                    | 가능                                                                                                                                                      | 가능                                                                                                                                       |
+| 필요 조건              | "OpenID Connect authentication is only available in upgraded projects" → Identity Platform 업그레이드. OIDC는 Tier 2: 월 50 MAU 무료, 넘으면 MAU당 $0.015 | 서비스 계정 개인키(RS256)를 Worker secret에 둔다. Identity Toolkit의 `signInWithCustomToken`                                                              | 공급자 Client ID·시크릿을 Worker secret에 둔다(세 안 공통)                                                                                 |
+| 비밀값의 피해 범위     | 시크릿은 Firebase 콘솔에                                                                                                                                  | **서비스 계정 키가 새면 그 Firebase 프로젝트의 아무 uid로나 로그인 토큰을 만들 수 있다**(Google 사용자 포함). 키는 기본 만료가 없어 회전을 직접 해야 한다 | 공급자 시크릿이 새도 그것만으로는 로그인할 수 없다(사용자 인가 코드가 필요)                                                                |
+| 패키지 변경            | 클라이언트에 OIDC 제공자 로그인 추가, Worker는 `firebase.sign_in_provider`별 허용 판단(이메일 없음 → 허용 목록 변경 필요)                                 | Worker에 코드 교환·커스텀 토큰 발급, 검증기는 이메일 없는 custom 사용자 허용                                                                              | Worker에 코드 교환·ID 토큰 검증·세션 전용 인증, 클라이언트에 리다이렉트 도우미·세션 전용 요청                                              |
+| 매 요청 인증           | Firebase ID 토큰 + 세션(지금과 같음)                                                                                                                      | Firebase ID 토큰 + 세션(지금과 같음)                                                                                                                      | 기기 세션만(256비트 무작위, D1에는 해시). 허용 목록은 매 요청 다시 확인                                                                    |
+| iOS Safari·홈 화면 PWA | Firebase 팝업/리다이렉트를 쓰므로 지금 Google과 같은 서드파티 저장소 문제가 있다(로그인 도우미로 완화)                                                    | 공급자 리다이렉트는 최상위 이동이라 영향 없음. `signInWithCustomToken`은 API 호출                                                                         | 최상위 이동과 같은 출처 저장소만 쓴다. 서드파티 저장소·iframe 없음                                                                         |
+| 카카오톡 인앱 브라우저 | Firebase 팝업이 인앱 브라우저에서 막힐 수 있다                                                                                                            | 공급자 리다이렉트는 동작                                                                                                                                  | 공급자 리다이렉트는 동작. (참고: Google 로그인은 임베디드 웹뷰에서 `disallowed_useragent`로 막힌다. 카카오 로그인은 이 경우의 대안이 된다) |
+| 로그인할 때 받는 JS    | Firebase SDK 청크                                                                                                                                         | Firebase SDK 청크                                                                                                                                         | 없음(Firebase를 불러오지 않음)                                                                                                             |
 
 **결론: 가능하다. (c)를 추천한다.**
 
@@ -90,38 +90,55 @@
 
 ```ts
 export type SocialProvider = 'kakao' | 'naver';
-export const SOCIAL_PROVIDERS: Record<SocialProvider, {
-  issuer: string;          // https://kauth.kakao.com | https://nid.naver.com
-  authorizeUrl: string;    // 클라이언트 상수와 같은 값(진입점끼리 import하지 않으므로 각자 둔다)
-  tokenUrl: string;        // https://kauth.kakao.com/oauth/token | https://nid.naver.com/oauth2/token
-  jwksUrl: string;         // https://kauth.kakao.com/.well-known/jwks.json | https://nid.naver.com/oauth2/jwks
-}>;
+export const SOCIAL_PROVIDERS: Record<
+  SocialProvider,
+  {
+    issuer: string; // https://kauth.kakao.com | https://nid.naver.com
+    authorizeUrl: string; // 클라이언트 상수와 같은 값(진입점끼리 import하지 않으므로 각자 둔다)
+    tokenUrl: string; // https://kauth.kakao.com/oauth/token | https://nid.naver.com/oauth2/token
+    jwksUrl: string; // https://kauth.kakao.com/.well-known/jwks.json | https://nid.naver.com/oauth2/jwks
+  }
+>;
 
 /** 공급자 JWKS 캐시. googleCerts처럼 isolate마다 하나 만든다. */
 export function jwksKeys(url: string, fetchImpl?: typeof fetch, now?: () => number): CertSource;
-export function socialKeys(fetchImpl?: typeof fetch, now?: () => number): Record<SocialProvider, CertSource>;
+export function socialKeys(
+  fetchImpl?: typeof fetch,
+  now?: () => number,
+): Record<SocialProvider, CertSource>;
 
 /** 'kakao:123, naver:AbC' → Set. 공급자 접두어만 소문자로, ID는 대소문자를 그대로 둔다. */
 export function parseAccountList(raw: string | undefined): Set<string>;
 
-export interface SocialProviderConfig { clientId: string; clientSecret?: string }
+export interface SocialProviderConfig {
+  clientId: string;
+  clientSecret?: string;
+}
 export interface SocialLoginOptions {
   /** 콤마로 구분한 허용 계정(secret). 'kakao:<sub>', 'naver:<sub>'. 비면 아무도 못 들어온다. */
   allowedAccounts: string | undefined;
   kakao?: SocialProviderConfig;
   naver?: SocialProviderConfig;
   keys: Record<SocialProvider, CertSource>; // socialKeys()
-  fetch?: typeof fetch;                      // 기본 전역 fetch. 시험에서 바꾼다
+  fetch?: typeof fetch; // 기본 전역 fetch. 시험에서 바꾼다
 }
 
 // 기존 타입에 더하는 것(모두 선택)
-interface SessionAuthOptions { /* 기존 그대로 */ social?: SocialLoginOptions }
-interface VerifiedUser { /* sub, email, authTime 그대로 */ provider?: SocialProvider } // Google 경로에서는 넣지 않는다
+interface SessionAuthOptions {
+  /* 기존 그대로 */ social?: SocialLoginOptions;
+}
+interface VerifiedUser {
+  /* sub, email, authTime 그대로 */ provider?: SocialProvider;
+} // Google 경로에서는 넣지 않는다
 interface SessionAuth {
   /* 기존 그대로 */
   /** POST /v1/session/social. social 옵션이 없으면 404 not-found. */
-  createSocial(req: Request, body: unknown): Promise<{
-    sessionId: string; expiresAt: number;
+  createSocial(
+    req: Request,
+    body: unknown,
+  ): Promise<{
+    sessionId: string;
+    expiresAt: number;
     user: { sub: string; email: string; provider: SocialProvider };
   }>;
 }
@@ -231,38 +248,38 @@ ALTER TABLE sessions ADD COLUMN identity TEXT;
 
 ## 7. 보안
 
-| 위협 | 대책 |
-| --- | --- |
-| 로그인 CSRF(공격자 코드로 피해자를 로그인시킴) | `state`를 브라우저 저장소 값과 비교(클라이언트). 저장값은 한 번 쓰면 지운다 |
+| 위협                                                                         | 대책                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 로그인 CSRF(공격자 코드로 피해자를 로그인시킴)                               | `state`를 브라우저 저장소 값과 비교(클라이언트). 저장값은 한 번 쓰면 지운다                                                                                                                                             |
 | 인가 코드 가로채기(URL·기록·Referer로 샌 code를 공격자가 우리 Worker에 제출) | PKCE: `code_verifier`는 시작한 브라우저 저장소에만 있다. Worker는 그것을 공급자에 넘기고, 공급자가 `code_challenge`와 맞춰 본다. 클라이언트는 콜백을 읽은 즉시 `stripSocialCallback`으로 URL을 지우도록 README에 적는다 |
-| ID 토큰 재생 | `nonce`(시작한 브라우저 저장소에만 있음)를 Worker가 비교. `iat`이 5분보다 오래면 거절 |
-| 서명 위조·alg 혼동 | RS256만, `kid`의 공급자 JWKS 키, `iss`·`aud`·`azp` 검사 |
-| 다른 앱의 토큰 | `aud`=우리 Client ID |
-| Google 세션을 토큰 없이 사용 | 세션 전용 인증은 `identity IS NOT NULL` 세션만 |
-| 허용 목록에서 뺀 계정 | 매 요청 다시 확인 → 403 |
-| 공급자 시크릿 노출 | Worker secret에만. 로그·응답에 넣지 않는다. 시크릿만으로는 로그인할 수 없다 |
-| 열린 엔드포인트로 공급자 호출 남용 | 본문 형식을 먼저 검사. 요청 빈도 제한은 서비스(Cloudflare Rate Limiting 등) 몫으로 README에 적는다 |
-| JWKS 과다 조회(카카오 차단) | `Cache-Control: max-age`(없으면 1시간, 최대 24시간) 동안 메모리 캐시. 모르는 `kid`면 마지막 조회 뒤 5분이 지났을 때만 다시 받는다. 동시 요청은 한 번만 받는다 |
-| 세션 원문 노출 | 지금과 같이 D1에는 SHA-256만. 세션 전용이라 세션 원문이 곧 자격 증명이다(쿠키 세션과 같은 수준). 기기에서 지우기·철회는 그대로 |
-| XSS로 저장소의 verifier 읽기 | XSS면 세션도 읽힌다. 이 설계로 늘어나는 위험은 없다. 서비스의 CSP가 대책 |
+| ID 토큰 재생                                                                 | `nonce`(시작한 브라우저 저장소에만 있음)를 Worker가 비교. `iat`이 5분보다 오래면 거절                                                                                                                                   |
+| 서명 위조·alg 혼동                                                           | RS256만, `kid`의 공급자 JWKS 키, `iss`·`aud`·`azp` 검사                                                                                                                                                                 |
+| 다른 앱의 토큰                                                               | `aud`=우리 Client ID                                                                                                                                                                                                    |
+| Google 세션을 토큰 없이 사용                                                 | 세션 전용 인증은 `identity IS NOT NULL` 세션만                                                                                                                                                                          |
+| 허용 목록에서 뺀 계정                                                        | 매 요청 다시 확인 → 403                                                                                                                                                                                                 |
+| 공급자 시크릿 노출                                                           | Worker secret에만. 로그·응답에 넣지 않는다. 시크릿만으로는 로그인할 수 없다                                                                                                                                             |
+| 열린 엔드포인트로 공급자 호출 남용                                           | 본문 형식을 먼저 검사. 요청 빈도 제한은 서비스(Cloudflare Rate Limiting 등) 몫으로 README에 적는다                                                                                                                      |
+| JWKS 과다 조회(카카오 차단)                                                  | `Cache-Control: max-age`(없으면 1시간, 최대 24시간) 동안 메모리 캐시. 모르는 `kid`면 마지막 조회 뒤 5분이 지났을 때만 다시 받는다. 동시 요청은 한 번만 받는다                                                           |
+| 세션 원문 노출                                                               | 지금과 같이 D1에는 SHA-256만. 세션 전용이라 세션 원문이 곧 자격 증명이다(쿠키 세션과 같은 수준). 기기에서 지우기·철회는 그대로                                                                                          |
+| XSS로 저장소의 verifier 읽기                                                 | XSS면 세션도 읽힌다. 이 설계로 늘어나는 위험은 없다. 서비스의 CSP가 대책                                                                                                                                                |
 
 PKCE·nonce·state 셋 다 쓰는 이유: 카카오는 PKCE가 메타데이터에만 있고(2.1) 실제로 검사하는지 확인이 필요하다. PKCE가 무시돼도 nonce가 코드 가로채기를 막는다(가로챈 code의 ID 토큰에는 피해자 브라우저의 nonce가 들어 있고, 공격자는 그 값을 모른다. 단 nonce는 인가 URL에 드러나므로 PKCE보다 약하다 → 14장에서 확인).
 
 ## 8. 실패 동작
 
-| 상황 | Worker | 클라이언트 결과 |
-| --- | --- | --- |
-| 사용자가 공급자 화면에서 취소 | — | `readSocialCallback` → `{ ok: false, reason: 'cancelled' }` (`error=access_denied`) |
-| 공급자가 다른 오류를 돌려줌 | — | `reason: 'provider-error'`, `error`에 공급자 코드(영숫자·`_`만, 64자까지) |
-| state 다름 / 10분 지남 | — | `'state-mismatch'` / `'expired'` |
-| 시작한 로그인이 없는데 code가 옴 | — | `null`(무시) |
-| 본문 형식 틀림 | 400 `bad-request` | `{ kind: 'server', status: 400 }` |
-| social 옵션 없음 | 404 `not-found` | `{ kind: 'not-found' }` |
-| 코드 교환 거절 | 401 `invalid-code` | `{ kind: 'auth', code: 'invalid-code' }` |
-| ID 토큰 검증 실패 | 401 `invalid-token` | `{ kind: 'auth', code: 'invalid-token' }` (auth 'none'이라 재시도 없음) |
-| 허용 목록 밖 | 403 `not-allowed` + `account` | `{ kind: 'not-allowed', account }` |
-| 공급자·JWKS 장애 | 503 `provider-unavailable` | `{ kind: 'limit', code: 'provider-unavailable' }` |
-| 세션 전용: 세션 없음/Google 세션/철회/만료/허용 목록 밖 | 401 `no-session`/401 `missing-token`/401 `session-revoked`/401 `session-expired`/403 `not-allowed` | `auth`/`auth`/`auth`/`auth`/`not-allowed` |
+| 상황                                                    | Worker                                                                                             | 클라이언트 결과                                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 사용자가 공급자 화면에서 취소                           | —                                                                                                  | `readSocialCallback` → `{ ok: false, reason: 'cancelled' }` (`error=access_denied`) |
+| 공급자가 다른 오류를 돌려줌                             | —                                                                                                  | `reason: 'provider-error'`, `error`에 공급자 코드(영숫자·`_`만, 64자까지)           |
+| state 다름 / 10분 지남                                  | —                                                                                                  | `'state-mismatch'` / `'expired'`                                                    |
+| 시작한 로그인이 없는데 code가 옴                        | —                                                                                                  | `null`(무시)                                                                        |
+| 본문 형식 틀림                                          | 400 `bad-request`                                                                                  | `{ kind: 'server', status: 400 }`                                                   |
+| social 옵션 없음                                        | 404 `not-found`                                                                                    | `{ kind: 'not-found' }`                                                             |
+| 코드 교환 거절                                          | 401 `invalid-code`                                                                                 | `{ kind: 'auth', code: 'invalid-code' }`                                            |
+| ID 토큰 검증 실패                                       | 401 `invalid-token`                                                                                | `{ kind: 'auth', code: 'invalid-token' }` (auth 'none'이라 재시도 없음)             |
+| 허용 목록 밖                                            | 403 `not-allowed` + `account`                                                                      | `{ kind: 'not-allowed', account }`                                                  |
+| 공급자·JWKS 장애                                        | 503 `provider-unavailable`                                                                         | `{ kind: 'limit', code: 'provider-unavailable' }`                                   |
+| 세션 전용: 세션 없음/Google 세션/철회/만료/허용 목록 밖 | 401 `no-session`/401 `missing-token`/401 `session-revoked`/401 `session-expired`/403 `not-allowed` | `auth`/`auth`/`auth`/`auth`/`not-allowed`                                           |
 
 ## 9. 시험 계획
 
@@ -301,13 +318,13 @@ PKCE·nonce·state 셋 다 쓰는 이유: 카카오는 PKCE가 메타데이터�
 
 **서비스(가즈아 등) 설정 위치**
 
-| 값 | 위치 | 비밀 여부 |
-| --- | --- | --- |
+| 값                            | 위치                                                                       | 비밀 여부                    |
+| ----------------------------- | -------------------------------------------------------------------------- | ---------------------------- |
 | 카카오 REST API 키(client_id) | Worker secret `KAKAO_CLIENT_ID`, 앱 빌드 변수 `VITE_KAKAO_LOGIN_CLIENT_ID` | 비밀 아님(인가 URL에 드러남) |
-| 카카오 클라이언트 시크릿 | Worker secret `KAKAO_CLIENT_SECRET` | **비밀** |
-| 네이버 Client ID | Worker secret `NAVER_CLIENT_ID`, 앱 빌드 변수 `VITE_NAVER_LOGIN_CLIENT_ID` | 비밀 아님 |
-| 네이버 Client Secret | Worker secret `NAVER_CLIENT_SECRET` | **비밀** |
-| 허용 계정 | Worker secret `ALLOWED_ACCOUNTS`(예: `kakao:1234567890,naver:AbCd…`) | 비밀 취급 |
+| 카카오 클라이언트 시크릿      | Worker secret `KAKAO_CLIENT_SECRET`                                        | **비밀**                     |
+| 네이버 Client ID              | Worker secret `NAVER_CLIENT_ID`, 앱 빌드 변수 `VITE_NAVER_LOGIN_CLIENT_ID` | 비밀 아님                    |
+| 네이버 Client Secret          | Worker secret `NAVER_CLIENT_SECRET`                                        | **비밀**                     |
+| 허용 계정                     | Worker secret `ALLOWED_ACCOUNTS`(예: `kakao:1234567890,naver:AbCd…`)       | 비밀 취급                    |
 
 허용 계정 값은 처음 로그인을 시도해 403 응답의 `account`로 확인한 뒤 넣는다(README에 절차).
 
@@ -315,16 +332,16 @@ Worker 이름은 서비스가 정한다(패키지는 값만 받는다). 위 이�
 
 ## 12. 결정 항목 (추천안으로 진행, 사용자 확인 필요)
 
-| # | 결정 | 선택지 | 추천 | 이유 |
-| --- | --- | --- | --- | --- |
-| D1 | Firebase와 잇는 방식 | (a) Firebase OIDC / (b) 커스텀 토큰 / (c) Worker 검증 + D1 세션 | **(c)** | 2.3: 비밀값 피해 범위, 과금 없음, iOS·인앱 동작, Google 경로 무변경 |
-| D2 | 카카오·네이버 허용 기준 | 공급자 ID / 이메일 / 둘 다 | **공급자 ID(`kakao:<sub>`)** | 카카오 이메일은 비즈 앱 필요·인증 여부 별도, 네이버 이메일은 인증 보장 없음, 카카오가 이메일을 동일인 판단에 쓰지 말라고 함 |
-| D3 | 같은 사람의 Google·카카오·네이버 계정 연결 | 연결 안 함 / 검증된 이메일로 자동 연결 / 로그인한 상태에서 명시적으로 연결 | **이번엔 연결 안 함(공급자마다 별도 사용자·데이터)** | 자동 연결은 이메일 검증 차이로 계정 탈취 위험. 명시적 연결은 `user_identities` 테이블·연결 API가 필요해 다음 단계로 둔다. 지금 스키마(접두어 붙은 `firebase_sub`)는 나중에 연결 테이블을 더하는 데 막히지 않는다 |
-| D4 | 허용 목록 비밀값 | `ALLOWED_EMAILS`에 섞기 / 별도 `allowedAccounts` | **별도** | 이메일 소문자화 규칙과 공급자 ID 대소문자 규칙이 달라 섞으면 실수하기 쉽다 |
-| D5 | 카카오 앱 | 카카오 공유 앱과 같은 앱 / 로그인 전용 앱 | 사용자 결정(패키지와 무관) | 같은 앱이면 키 관리가 하나, 따로면 권한이 나뉜다 |
-| D6 | 공급자 SDK | JS SDK / REST 리다이렉트 | **REST 리다이렉트** | 런타임 의존성 0, CSP 변경 없음. 카카오 REST 인가도 카카오톡 로그인을 띄운다(2.1) |
-| D7 | 콜백 저장소 | sessionStorage / localStorage | **localStorage(주입 가능)** | 앱 전환 뒤 새 탭으로 돌아오는 경우 대비. 한 번 쓰고 지우며 10분 유효 |
-| D8 | 공급자 장애 응답 | 502 / 503 | **503 `provider-unavailable`** | 클라이언트가 `limit`(잠시 뒤 다시)로 보여 준다 |
+| #   | 결정                                       | 선택지                                                                     | 추천                                                 | 이유                                                                                                                                                                                                             |
+| --- | ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Firebase와 잇는 방식                       | (a) Firebase OIDC / (b) 커스텀 토큰 / (c) Worker 검증 + D1 세션            | **(c)**                                              | 2.3: 비밀값 피해 범위, 과금 없음, iOS·인앱 동작, Google 경로 무변경                                                                                                                                              |
+| D2  | 카카오·네이버 허용 기준                    | 공급자 ID / 이메일 / 둘 다                                                 | **공급자 ID(`kakao:<sub>`)**                         | 카카오 이메일은 비즈 앱 필요·인증 여부 별도, 네이버 이메일은 인증 보장 없음, 카카오가 이메일을 동일인 판단에 쓰지 말라고 함                                                                                      |
+| D3  | 같은 사람의 Google·카카오·네이버 계정 연결 | 연결 안 함 / 검증된 이메일로 자동 연결 / 로그인한 상태에서 명시적으로 연결 | **이번엔 연결 안 함(공급자마다 별도 사용자·데이터)** | 자동 연결은 이메일 검증 차이로 계정 탈취 위험. 명시적 연결은 `user_identities` 테이블·연결 API가 필요해 다음 단계로 둔다. 지금 스키마(접두어 붙은 `firebase_sub`)는 나중에 연결 테이블을 더하는 데 막히지 않는다 |
+| D4  | 허용 목록 비밀값                           | `ALLOWED_EMAILS`에 섞기 / 별도 `allowedAccounts`                           | **별도**                                             | 이메일 소문자화 규칙과 공급자 ID 대소문자 규칙이 달라 섞으면 실수하기 쉽다                                                                                                                                       |
+| D5  | 카카오 앱                                  | 카카오 공유 앱과 같은 앱 / 로그인 전용 앱                                  | 사용자 결정(패키지와 무관)                           | 같은 앱이면 키 관리가 하나, 따로면 권한이 나뉜다                                                                                                                                                                 |
+| D6  | 공급자 SDK                                 | JS SDK / REST 리다이렉트                                                   | **REST 리다이렉트**                                  | 런타임 의존성 0, CSP 변경 없음. 카카오 REST 인가도 카카오톡 로그인을 띄운다(2.1)                                                                                                                                 |
+| D7  | 콜백 저장소                                | sessionStorage / localStorage                                              | **localStorage(주입 가능)**                          | 앱 전환 뒤 새 탭으로 돌아오는 경우 대비. 한 번 쓰고 지우며 10분 유효                                                                                                                                             |
+| D8  | 공급자 장애 응답                           | 502 / 503                                                                  | **503 `provider-unavailable`**                       | 클라이언트가 `limit`(잠시 뒤 다시)로 보여 준다                                                                                                                                                                   |
 
 ## 13. 가즈아 적용(별도 작업에서 할 일, 참고)
 
@@ -341,3 +358,10 @@ Worker 이름은 서비스가 정한다(패키지는 값만 받는다). 위 이�
 4. iOS 홈 화면 PWA에서 공급자 로그인 뒤 PWA로 돌아와 localStorage 값을 읽는지.
 5. 카카오톡 인앱 브라우저에서 카카오·네이버 로그인이 끝까지 되는지. 인앱에서 시작해 외부 브라우저로 돌아오면 state가 없어 `null`/실패가 되는 것이 정상이다(다시 시도 안내).
 6. JWKS 응답의 `Cache-Control`.
+
+## 15. 구현 중 바뀐 결정 (2026-10-29)
+
+- **카카오 인가 요청에 `scope`를 넣지 않는다.** 카카오 REST API 문서는 `scope`를 추가 동의 요청용으로 설명하고, OIDC를 켠 앱은 "별도의 파라미터 없이" ID 토큰을 준다. 네이버 OIDC만 `scope=openid`를 넣는다(필수).
+- **콜백에 `code`가 비어 있으면** `readSocialCallback`이 `provider-error`를 돌려준다(Worker까지 보내지 않는다).
+- **Worker 크기 한도를 3 kB → 3.8 kB로 올렸다.** `createSessionAuth`가 소셜 코드(`exchangeSocial`·`parseAccountList`)를 참조해 실측 3.59 kB가 됐다. Worker 번들이라 브라우저 첫 로딩 예산과 무관하다. 소셜을 쓰지 않는 서비스까지 이 코드를 싣는 것을 피하려면 소셜 처리를 별도 팩토리로 떼야 하는데, 공개 API가 하나 더 늘어 이번에는 하지 않았다.
+- `/client` 기존 크기 항목은 2.18 kB / 2.2 kB로 여유가 20 B뿐이다. 다음 변경에서 한도를 다시 봐야 한다.

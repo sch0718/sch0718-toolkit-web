@@ -46,11 +46,11 @@ export interface TestD1 extends D1Database {
   failNextBatchAt(n: number): void;
 }
 
-export function createTestD1(): TestD1 {
+export function createTestD1(migrations?: readonly string[]): TestD1 {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
   for (const f of readdirSync(MIGRATIONS)
-    .filter((n) => n.endsWith('.sql'))
+    .filter((n) => n.endsWith('.sql') && (!migrations || migrations.includes(n)))
     .sort()) {
     raw.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
   }

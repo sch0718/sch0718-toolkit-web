@@ -18,3 +18,14 @@ export {
   type SignInResult,
 } from './auth.js';
 export { readSyncConfig, type FirebaseConfig, type SyncConfig } from './config.js';
+export {
+  beginSocialSignIn,
+  readSocialCallback,
+  readSocialConfig,
+  socialAuthorizeUrl,
+  SOCIAL_AUTHORIZE_URLS,
+  stripSocialCallback,
+  type SocialProvider,
+  type SocialSignInOptions,
+  type SocialCallback,
+} from './social.js';

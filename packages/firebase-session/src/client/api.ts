@@ -1,13 +1,15 @@
 // 토큰·기기 세션을 붙여 Worker를 부르는 HTTP 클라이언트. 응답을 몇 가지 결과로 나눈다.
 // ID 토큰은 매 요청 Authorization: Bearer로, 기기 세션은 서비스가 정한 헤더로 보낸다. 토큰·세션은 로그에 남기지 않는다.
 
+import type { SocialProvider } from './social.js';
+
 export type BaseFail =
   /**
    * 다시 로그인해야 한다. code: missing-token·invalid-token·no-session·session-revoked·session-expired·reauth-required
    * session: 실패한 요청이 쓴 기기 세션(그 사이 새로 로그인했으면 이 실패는 무시해야 한다).
    */
   | { ok: false; kind: 'auth'; code: string; session?: string }
-  | { ok: false; kind: 'not-allowed' }
+  | { ok: false; kind: 'not-allowed'; account?: string }
   /** 네트워크 실패, 또는 성공 응답의 본문을 다 받지 못했거나 JSON이 아님(다시 시도하면 된다) */
   | { ok: false; kind: 'offline' }
   /** 서비스 한도·무료 한도 초과(429·503) */
@@ -50,6 +52,8 @@ export interface SendOptions {
 
 export interface SessionClientOptions<X extends Fail> {
   baseUrl: string;
+  /** ID 토큰이 없을 때 세션만 보내도록 허용한다. 기본 false. */
+  allowSessionOnly?: boolean;
   credentials: Credentials;
   sessionHeader: string;
   fetch?: typeof fetch;
@@ -66,6 +70,25 @@ export interface SessionClient<X extends Fail = never> {
     idToken: string,
     label: string,
   ): Promise<ApiResult<{ sessionId: string; expiresAt: number }, BaseFail | X>>;
+  createSocialSession(
+    input: {
+      provider: SocialProvider;
+      code: string;
+      codeVerifier: string;
+      nonce: string;
+      redirectUri: string;
+    },
+    label: string,
+  ): Promise<
+    ApiResult<
+      {
+        sessionId: string;
+        expiresAt: number;
+        user: { sub: string; email: string; provider: SocialProvider };
+      },
+      BaseFail | X
+    >
+  >;
   endSession(): Promise<ApiResult<unknown, BaseFail | X>>;
   listSessions(): Promise<ApiResult<{ sessions: DeviceSession[] }, BaseFail | X>>;
   revokeSession(id: string | 'others'): Promise<ApiResult<{ revoked: number }, BaseFail | X>>;
@@ -74,6 +97,7 @@ export interface SessionClient<X extends Fail = never> {
 export const AUTH_CODES = new Set([
   'missing-token',
   'invalid-token',
+  'invalid-code',
   'no-session',
   'session-revoked',
   'session-expired',
@@ -114,7 +138,14 @@ async function toResult<T, X extends Fail>(
       return { ok: false, kind: 'auth', code: AUTH_CODES.has(code) ? code : 'invalid-token' };
     case 403:
       return code === 'not-allowed'
-        ? { ok: false, kind: 'not-allowed' }
+        ? {
+            ok: false,
+            kind: 'not-allowed',
+            ...(typeof body['account'] === 'string' &&
+              /^(kakao|naver):[\x21-\x7e]{1,128}$/.test(body['account']) && {
+                account: body['account'],
+              }),
+          }
         : { ok: false, kind: 'server', status: 403 };
     case 404:
       return { ok: false, kind: 'not-found' };
@@ -149,6 +180,7 @@ export function createSessionClient<X extends Fail = never>(
     opts: SendOptions = {},
   ): Promise<ApiResult<T, BaseFail | X>> {
     const auth = opts.auth ?? 'session';
+    let sessionOnly = false;
     // retryOf: 다시 보낼 때 첫 실패(그 요청이 쓴 세션이 실려 있다). 그 사이 세션이 바뀌었으면 보내지 않고 그대로 돌려준다.
     const attempt = async (
       force: boolean,
@@ -162,13 +194,16 @@ export function createSessionClient<X extends Fail = never>(
         let s: string | null = null;
         try {
           token = opts.token ?? (await o.credentials.idToken(force));
-          if (token && auth === 'session') s = await o.credentials.sessionId();
+          if ((token || o.allowSessionOnly) && auth === 'session')
+            s = await o.credentials.sessionId();
         } catch {
           return { ok: false, kind: 'offline' };
         }
         if (retryOf && s !== retryOf.session) return retryOf;
-        if (!token) return { ok: false, kind: 'auth', code: 'missing-token' };
-        headers['Authorization'] = `Bearer ${token}`;
+        if (!token && !(o.allowSessionOnly && auth === 'session' && s))
+          return { ok: false, kind: 'auth', code: 'missing-token' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        sessionOnly = !token;
         if (auth === 'session') {
           if (!s) return { ok: false, kind: 'auth', code: 'no-session' };
           headers[o.sessionHeader] = s;
@@ -195,7 +230,13 @@ export function createSessionClient<X extends Fail = never>(
     };
     const first = await attempt(false);
     // 만료 직전에 받은 ID 토큰이면 한 번만 새로 받아 다시 보낸다
-    if (!isAuthFail(first) || first.code !== 'invalid-token' || auth === 'none' || opts.token)
+    if (
+      !isAuthFail(first) ||
+      first.code !== 'invalid-token' ||
+      sessionOnly ||
+      auth === 'none' ||
+      opts.token
+    )
       return first;
     if (auth === 'token') return attempt(true);
     // 그 사이 다른 계정으로 바꿔 로그인했으면 첫 요청의 본문을 새 계정의 자격으로 보내지 않는다.
@@ -217,6 +258,8 @@ export function createSessionClient<X extends Fail = never>(
     send,
     createSession: (idToken, label) =>
       send('POST', '/v1/session', { auth: 'token', token: idToken, body: { label } }),
+    createSocialSession: (input, label) =>
+      send('POST', '/v1/session/social', { auth: 'none', body: { ...input, label } }),
     endSession: () => send('DELETE', '/v1/session'),
     listSessions: () => send('GET', '/v1/sessions'),
     revokeSession: (id) =>
