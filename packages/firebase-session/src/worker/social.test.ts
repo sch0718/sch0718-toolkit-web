@@ -227,6 +227,9 @@ describe('createSocial', () => {
   );
   it.each([
     ['4xx', 401, 'invalid-code'],
+    ['428', 401, 'invalid-code'],
+    ['429', 503, 'provider-unavailable'],
+    ['430', 401, 'invalid-code'],
     ['5xx', 503, 'provider-unavailable'],
     ['network', 503, 'provider-unavailable'],
     ['json', 401, 'invalid-token'],
@@ -237,8 +240,10 @@ describe('createSocial', () => {
     const s = setup();
     s.f.mockImplementation(async () => {
       if (mode === 'network') throw new Error('test-secret');
-      if (mode === '4xx' || mode === '5xx')
-        return new Response('test-secret', { status: mode === '4xx' ? 400 : 500 });
+      if (mode === '4xx' || mode === '5xx' || mode === '428' || mode === '429' || mode === '430')
+        return new Response('test-secret', {
+          status: mode === '4xx' ? 400 : mode === '5xx' ? 500 : Number(mode),
+        });
       if (mode === 'json') return new Response('test-secret');
       return Response.json(mode === 'null' ? null : mode === 'missing' ? {} : { id_token: 42 });
     });

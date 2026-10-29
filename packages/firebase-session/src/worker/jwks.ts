@@ -7,6 +7,7 @@ const JWKS_DEFAULT_TTL = 60 * 60 * 1000;
 const JWKS_MIN_TTL = 10 * 60 * 1000;
 const JWKS_MAX_TTL = 24 * JWKS_DEFAULT_TTL;
 const JWKS_STALE_MAX = 6 * JWKS_DEFAULT_TTL;
+const JWKS_NEGATIVE_TTL = 30 * 1000;
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 export function jwksKeys(
@@ -16,6 +17,7 @@ export function jwksKeys(
 ): CertSource {
   let cached: { until: number; keys: Map<string, JoseKey> } | null = null;
   let lastFetch = -Infinity;
+  let failedAt = -Infinity;
   let inflight: Promise<void> | null = null;
 
   async function load(): Promise<void> {
@@ -55,19 +57,24 @@ export function jwksKeys(
           ? JWKS_DEFAULT_TTL
           : Math.max(JWKS_MIN_TTL, Math.min(age, JWKS_MAX_TTL));
       cached = { until: now() + ttl, keys };
+      failedAt = -Infinity;
     } catch {
       if (cached && now() < cached.until + JWKS_STALE_MAX) return;
+      failedAt = now();
       throw new CertsUnavailableError('jwks unavailable');
     }
   }
 
   return {
     async key(kid) {
+      const t = now();
       if (
         !cached ||
         now() >= cached.until + JWKS_STALE_MAX ||
         ((now() >= cached.until || !cached.keys.has(kid)) && now() - lastFetch >= REFRESH_INTERVAL)
       ) {
+        if (failedAt <= t && t - failedAt < JWKS_NEGATIVE_TTL)
+          throw new CertsUnavailableError('jwks unavailable');
         inflight ??= load().finally(() => {
           inflight = null;
         });
