@@ -1,5 +1,12 @@
 # @sch0718/firebase-session
 
+## 0.2.1
+
+### Patch Changes
+
+- [#19](https://github.com/sch0718/sch0718-toolkit-web/pull/19) [`2fe9944`](https://github.com/sch0718/sch0718-toolkit-web/commit/2fe99443165f259ee8401ace37152db6ab45d128) Thanks [@sch0718](https://github.com/sch0718)! - 토큰 엔드포인트 429를 503 `provider-unavailable`로 분류합니다.
+  캐시가 없거나 stale 한도를 넘긴 뒤 JWKS 조회가 실패하면 30초 negative cache를 적용합니다.
+
 ## 0.2.0
 
 ### Minor Changes
