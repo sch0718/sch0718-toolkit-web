@@ -54,6 +54,12 @@ describe('세션 전용 authenticate', () => {
       last_used_at: s.clock.now,
     });
   });
+  it('users.email에 값이 저장돼 있어도 소셜 사용자의 email은 빈 문자열', async () => {
+    const s = setup();
+    const { sessionId } = await s.login();
+    s.db.raw.prepare('UPDATE users SET email = ?').run('legacy@example.com');
+    expect((await s.auth.authenticate(s.req(sessionId))).user.email).toBe('');
+  });
   it.each([undefined, 'bad'])('세션 없음/형식 오류 %s → missing-token', async (sessionId) => {
     const s = setup();
     await expect(s.auth.authenticate(s.req(sessionId))).rejects.toMatchObject({

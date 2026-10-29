@@ -198,7 +198,7 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
           .prepare(
             sessionOnly
               ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
-           s.identity, s.created_at AS createdAt, u.email
+           s.identity, s.created_at AS createdAt
            FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = ?`
               : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
            FROM sessions s JOIN users u ON u.id = s.user_id
@@ -211,7 +211,6 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
             revokedAt: number | null;
             identity: string | null;
             createdAt: number;
-            email: string;
           }>(),
       );
       if (!row) throw new HttpError(401, 'no-session');
@@ -224,7 +223,7 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
           throw new HttpError(403, 'not-allowed');
         user = {
           sub: row.identity!,
-          email: row.email,
+          email: '', // 소셜 사용자의 email은 DB 값과 무관하게 항상 ''
           authTime: row.createdAt,
           provider: row.identity!.startsWith('kakao:') ? 'kakao' : 'naver',
         };
