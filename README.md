@@ -10,15 +10,15 @@
 
 ## 패키지
 
-| 패키지                                                   | 설명                                                                                                                                                                                  | 상태         |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| [`@sch0718/seen-store`](packages/seen-store)             | 이미 본 항목(처음 안내 등)의 기록. 저장소가 막히면 메모리로 동작                                                                                                                      | 첫 발행 준비 |
-| [`@sch0718/firebase-session`](packages/firebase-session) | Firebase ID 토큰 검증·이메일 허용 목록·D1 기기 세션(`/worker`), 로그인·세션 API 클라이언트(`/client`), 로그인 도우미·CSP Vite 플러그인(`/vite`). users·sessions 마이그레이션 SQL 포함 | 첫 발행 준비 |
-| [`@sch0718/vite-app`](packages/vite-app)                 | PWA 설정 팩토리 `createPwaOptions()`, 개발 서버 CSP 완화 플러그인 `devCsp()`                                                                                                          | 첫 발행 준비 |
-| [`@sch0718/ui-svelte`](packages/ui-svelte)               | 범용 디자인 토큰(`tokens.css`)과 Svelte 5 컴포넌트(Badge, Banner, Chip, Segmented, Sheet, Snackbar, SnackbarHost, Toggle), `applyTheme`                                               | 첫 발행 준비 |
-| [`@sch0718/license-notices`](packages/license-notices)   | 라이선스 고지 파일 생성 `writeNotices()`                                                                                                                                              | 첫 발행 준비 |
-| [`@sch0718/kakao-share`](packages/kakao-share)           | 카카오톡 피드 공유. SDK를 SRI로 확인해 지연 로드하고 키는 앱이 주입                                                                                                                   | 첫 발행 준비 |
-| [`@sch0718/motion-kit`](packages/motion-kit)             | 움직이는 그림(애니메이션 SVG) 생성기의 기반 함수. 빌드 스크립트용                                                                                                                     | 첫 발행 준비 |
+| 패키지                                                   | 설명                                                                                                                                                                                 | 상태         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
+| [`@sch0718/seen-store`](packages/seen-store)             | 이미 본 항목(처음 안내 등)의 기록. 저장소가 막히면 메모리로 동작                                                                                                                     | 첫 발행 준비 |
+| [`@sch0718/firebase-session`](packages/firebase-session) | Google·카카오·네이버 로그인·허용 목록·D1 기기 세션(`/worker`), 로그인·세션 API 클라이언트(`/client`), 로그인 도우미·CSP Vite 플러그인(`/vite`). users·sessions 마이그레이션 SQL 포함 | 첫 발행 준비 |
+| [`@sch0718/vite-app`](packages/vite-app)                 | PWA 설정 팩토리 `createPwaOptions()`, 개발 서버 CSP 완화 플러그인 `devCsp()`                                                                                                         | 첫 발행 준비 |
+| [`@sch0718/ui-svelte`](packages/ui-svelte)               | 범용 디자인 토큰(`tokens.css`)과 Svelte 5 컴포넌트(Badge, Banner, Chip, Segmented, Sheet, Snackbar, SnackbarHost, Toggle), `applyTheme`                                              | 첫 발행 준비 |
+| [`@sch0718/license-notices`](packages/license-notices)   | 라이선스 고지 파일 생성 `writeNotices()`                                                                                                                                             | 첫 발행 준비 |
+| [`@sch0718/kakao-share`](packages/kakao-share)           | 카카오톡 피드 공유. SDK를 SRI로 확인해 지연 로드하고 키는 앱이 주입                                                                                                                  | 첫 발행 준비 |
+| [`@sch0718/motion-kit`](packages/motion-kit)             | 움직이는 그림(애니메이션 SVG) 생성기의 기반 함수. 빌드 스크립트용                                                                                                                    | 첫 발행 준비 |
 
 ## 넣는 기준
 

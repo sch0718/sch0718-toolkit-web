@@ -78,3 +78,6 @@ export function base64url(bytes: Uint8Array): string {
 /** 256비트 base64url(43자)인지. */
 export const isCapability = (s: string | null): s is string =>
   s !== null && /^[A-Za-z0-9_-]{43}$/.test(s);
+
+/** 공급자 토큰·공개키 요청 시간 제한. */
+export const PROVIDER_TIMEOUT_MS = 10_000;

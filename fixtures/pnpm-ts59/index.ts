@@ -9,6 +9,15 @@ store.mark('unknown');
 export const seen: boolean = store.read().has('library');
 
 import {
+  beginSocialSignIn,
+  readSocialCallback,
+  stripSocialCallback,
+  socialAuthorizeUrl,
+  socialNonce,
+  readSocialConfig,
+  SOCIAL_AUTHORIZE_URLS,
+  type SocialCallback,
+  type SocialSignInOptions,
   firebaseAuth,
   readSyncConfig,
   createSessionClient,
@@ -18,6 +27,14 @@ import { firebaseAuthHelper, firebaseCsp } from '@sch0718/firebase-session/vite'
 import {
   createSessionAuth,
   googleCerts,
+  jwksKeys,
+  socialKeys,
+  parseAccountList,
+  SOCIAL_PROVIDERS,
+  SESSION_PATHS,
+  type SocialProvider,
+  type SocialProviderConfig,
+  type SocialLoginOptions,
   purgeSessions,
   type D1Database,
 } from '@sch0718/firebase-session/worker';
@@ -29,6 +46,7 @@ const cfg = readSyncConfig({ VITE_SYNC_API_URL: 'https://api.example.test' });
 if (cfg) firebaseAuth(cfg.firebase);
 const api = createSessionClient<{ ok: false; kind: 'conflict' }>({
   baseUrl: 'https://api.example.test',
+  allowSessionOnly: true,
   credentials: { idToken: async () => null, sessionId: async () => null },
   sessionHeader: 'X-Compat-Session',
   mapStatus: (s) => (s === 409 ? { ok: false, kind: 'conflict' } : undefined),
@@ -43,6 +61,7 @@ export const sessions = createSessionAuth({
   db,
   projectId: 'p',
   allowedEmails: undefined,
+  social: { allowedAccounts: 'kakao:123', kakao: { clientId: 'public-id' }, keys: socialKeys() },
   certs: googleCerts(),
   sessionHeader: 'X-Compat-Session',
   now: Date.now,
@@ -97,3 +116,45 @@ const css: string = motionCss({
 motionCss({ sceneLength: 3, scenes: 2, effects: [] });
 export const svg: string = svgDocument({ w: 10, h: 10, title: 't', desc: 'd', css, body: '' });
 export const width: number = textWidth('가나', 12);
+
+// 소셜 공개 API 선언을 소비자 TypeScript 5.9에서 검사한다(실행하지 않는다).
+const socialProvider: SocialProvider = 'kakao';
+const providerConfig: SocialProviderConfig = {
+  clientId: 'public-id',
+  redirectUris: ['https://app.test/callback'],
+};
+export const socialOptions: SocialLoginOptions = {
+  allowedAccounts: undefined,
+  kakao: providerConfig,
+  keys: socialKeys(),
+};
+export const jwks = jwksKeys(SOCIAL_PROVIDERS[socialProvider].jwksUrl);
+export const accounts: Set<string> = parseAccountList('kakao:123,naver:AbC');
+export const socialPath: string = SESSION_PATHS.social;
+const signInOptions: SocialSignInOptions = {
+  ...providerConfig,
+  redirectUri: 'https://app.test/callback',
+};
+export const signingIn: Promise<void> = beginSocialSignIn(socialProvider, signInOptions);
+export const callback: SocialCallback | null = readSocialCallback('https://app.test/callback');
+export const cleanCallback: string = stripSocialCallback('https://app.test/callback');
+export const socialConfig = readSocialConfig({ VITE_KAKAO_LOGIN_CLIENT_ID: 'public-id' });
+export const authorizeUrl: string = socialAuthorizeUrl(socialProvider, {
+  ...signInOptions,
+  state: 's',
+  nonce: 'n',
+  codeChallenge: 'c',
+});
+export const kakaoAuthorize: string = SOCIAL_AUTHORIZE_URLS.kakao;
+if (callback?.ok) {
+  api.createSocialSession(callback, '노트북');
+}
+export const socialSession: Promise<unknown> = sessions.createSocial(
+  new Request('https://api.test'),
+  {},
+);
+export const deniedAccount: BaseFail = { ok: false, kind: 'not-allowed', account: 'kakao:123' };
+
+export const derivedNonce: Promise<string> = socialNonce('v'.repeat(43));
+export const redirectFailure: Extract<SocialCallback, { ok: false }>['reason'] =
+  'redirect-mismatch';

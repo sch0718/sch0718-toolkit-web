@@ -13,11 +13,17 @@
     "limit": "2.2 kB"
   },
   {
+    "name": "@sch0718/firebase-session/client social",
+    "path": "packages/firebase-session/dist/client/index.js",
+    "import": "{ beginSocialSignIn, readSocialCallback, stripSocialCallback }",
+    "limit": "1.02 kB"
+  },
+  {
     "name": "@sch0718/firebase-session/worker",
     "path": "packages/firebase-session/dist/worker/index.js",
     "import": "{ createSessionAuth, googleCerts, matchOrigin, preflight, json, readJson }",
     "ignore": ["jose"],
-    "limit": "3 kB"
+    "limit": "4 kB"
   },
   {
     "name": "@sch0718/vite-app",

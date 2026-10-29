@@ -1,10 +1,12 @@
 // Firebase ID 토큰 검증(공식 문서 「서드파티 JWT 라이브러리로 검증」 절의 조건)과 이메일 허용 목록.
 import { decodeProtectedHeader, errors, jwtVerify } from 'jose';
+import type { SocialProvider } from './social.js';
 import type { CertSource } from './certs.js';
 
 export const CLOCK_SKEW_SEC = 60;
 
 export interface VerifiedUser {
+  provider?: SocialProvider;
   sub: string;
   email: string;
   authTime: number; // epoch ms

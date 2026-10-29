@@ -1,6 +1,12 @@
 // D1 자체 세션: 기기별, 마지막 사용 후 30일 슬라이딩 만료, 기기별·전체 철회.
-// 세션 원문은 기기에만 있고 D1에는 SHA-256 hex만 둔다. 매 요청에서 ID 토큰과 세션을 둘 다 검사한다.
-// 테이블: migrations/0001_users_sessions.sql
+// 세션 원문은 기기에만 있고 D1에는 SHA-256 hex만 둔다. 소셜 세션만 ID 토큰 없이 인증한다.
+// 테이블: migrations/0001_users_sessions.sql, 소셜 세션은 firebase-session-0002_social_sessions.sql도 적용.
+import {
+  parseAccountList,
+  exchangeSocial,
+  type SocialLoginOptions,
+  type SocialProvider,
+} from './social.js';
 import type { CertSource } from './certs.js';
 import type { D1Database, D1Result } from './d1.js';
 import { base64url, HttpError, sha256Hex } from './http.js';
@@ -19,6 +25,7 @@ export const KEEP_AFTER_END = 30 * DAY;
 export const SESSION_PATHS = {
   /** POST: 만들기, DELETE: 이 기기 철회 */
   session: '/v1/session',
+  social: '/v1/session/social',
   /** GET: 목록, DELETE ?others=1: 다른 기기 모두 철회, DELETE /:id: 하나 철회 */
   sessions: '/v1/sessions',
 } as const;
@@ -40,6 +47,7 @@ export interface DeviceSessionRow {
 
 export interface SessionAuthOptions {
   db: D1Database;
+  social?: SocialLoginOptions;
   /** Firebase 프로젝트 ID. 토큰의 aud·iss를 이것으로 검사한다. */
   projectId: string;
   /** 콤마로 구분한 허용 이메일(secret). 비어 있으면 아무도 들어오지 못한다. */
@@ -56,6 +64,15 @@ export interface SessionAuthOptions {
 }
 
 export interface SessionAuth {
+  /** POST /v1/session/social. social 옵션이 없으면 404. */
+  createSocial(
+    req: Request,
+    body: unknown,
+  ): Promise<{
+    sessionId: string;
+    expiresAt: number;
+    user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string };
+  }>;
   /** 토큰 검증 + 허용 목록. 실패는 HttpError(401·403)로 바꾼다. */
   verifiedUser(req: Request): Promise<VerifiedUser>;
   /** POST /v1/session. 사용자를 만들거나 갱신하고 새 세션을 돌려준다. */
@@ -74,6 +91,24 @@ export function cleanLabel(v: unknown, fallback: string): string {
   // eslint-disable-next-line no-control-regex
   const s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
   return [...s].slice(0, LABEL_MAX).join('') || fallback;
+}
+
+async function socialQuery<T>(enabled: boolean, query: () => Promise<T>): Promise<T> {
+  try {
+    return await query();
+  } catch (e) {
+    if (
+      enabled &&
+      e instanceof Error &&
+      /no such column|has no column named/i.test(e.message) &&
+      /identity/i.test(e.message)
+    )
+      throw new Error(
+        '@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다',
+        { cause: e },
+      );
+    throw e;
+  }
 }
 
 export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
@@ -95,6 +130,42 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
     }
   }
 
+  async function saveSession(
+    user: { sub: string; email: string },
+    label: string,
+    now: number,
+    identity?: string,
+  ) {
+    const row = await o.db
+      .prepare(
+        `INSERT INTO users (id, firebase_sub, email, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (firebase_sub) DO UPDATE SET email = excluded.email, last_seen_at = excluded.last_seen_at
+     RETURNING id`,
+      )
+      .bind(o.uuid(), user.sub, user.email, now, now)
+      .first<{ id: string }>();
+    if (!row) throw new Error('users upsert returned no row');
+    const sessionId = base64url(o.random(32));
+    await socialQuery(identity !== undefined, async () =>
+      o.db
+        .prepare(
+          identity === undefined
+            ? 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)'
+            : 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at, identity) VALUES (?, ?, ?, ?, ?, ?)',
+        )
+        .bind(
+          await sha256Hex(sessionId),
+          row.id,
+          label,
+          now,
+          now,
+          ...(identity === undefined ? [] : [identity]),
+        )
+        .run(),
+    );
+    return { sessionId, expiresAt: now + SESSION_TTL };
+  }
+
   return {
     verifiedUser,
 
@@ -105,49 +176,65 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       const raw =
         typeof body === 'object' && body !== null ? (body as { label?: unknown }).label : undefined;
       const label = cleanLabel(raw, defaultLabel);
-      const row = await o.db
-        .prepare(
-          `INSERT INTO users (id, firebase_sub, email, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (firebase_sub) DO UPDATE SET email = excluded.email, last_seen_at = excluded.last_seen_at
-     RETURNING id`,
-        )
-        .bind(o.uuid(), user.sub, user.email, now, now)
-        .first<{ id: string }>();
-      if (!row) throw new Error('users upsert returned no row');
-      const sessionId = base64url(o.random(32));
-      await o.db
-        .prepare(
-          'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)',
-        )
-        .bind(await sha256Hex(sessionId), row.id, label, now, now)
-        .run();
-      return { sessionId, expiresAt: now + SESSION_TTL };
+      return saveSession(user, label, now);
+    },
+
+    async createSocial(_req, body) {
+      if (!o.social) throw new HttpError(404, 'not-found');
+      const now = o.now();
+      const { user, label } = await exchangeSocial(body, o.social, now, REAUTH_WINDOW);
+      return { ...(await saveSession(user, cleanLabel(label, defaultLabel), now, user.sub)), user };
     },
 
     async authenticate(req) {
-      const user = await verifiedUser(req);
+      const sessionOnly = o.social && !req.headers.has('Authorization');
+      let user = sessionOnly ? null : await verifiedUser(req);
       const raw = req.headers.get(o.sessionHeader);
-      if (!raw || !/^[A-Za-z0-9_-]{43}$/.test(raw)) throw new HttpError(401, 'no-session');
+      if (!raw || !/^[A-Za-z0-9_-]{43}$/.test(raw))
+        throw new HttpError(401, sessionOnly ? 'missing-token' : 'no-session');
       const hash = await sha256Hex(raw);
-      const row = await o.db
-        .prepare(
-          `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
-     FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.id_hash = ? AND u.firebase_sub = ?`,
-        )
-        .bind(hash, user.sub)
-        .first<{ userId: string; lastUsedAt: number; revokedAt: number | null }>();
+      const row = await socialQuery(!!sessionOnly, () =>
+        o.db
+          .prepare(
+            sessionOnly
+              ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
+           s.identity, s.created_at AS createdAt
+           FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = ?`
+              : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
+           FROM sessions s JOIN users u ON u.id = s.user_id
+           WHERE s.id_hash = ? AND u.firebase_sub = ?`,
+          )
+          .bind(hash, ...(user ? [user.sub] : []))
+          .first<{
+            userId: string;
+            lastUsedAt: number;
+            revokedAt: number | null;
+            identity: string | null;
+            createdAt: number;
+          }>(),
+      );
       if (!row) throw new HttpError(401, 'no-session');
+      if (sessionOnly && row.identity === null) throw new HttpError(401, 'missing-token');
       if (row.revokedAt !== null) throw new HttpError(401, 'session-revoked');
       const now = o.now();
       if (row.lastUsedAt + SESSION_TTL <= now) throw new HttpError(401, 'session-expired');
+      if (sessionOnly) {
+        if (!parseAccountList(o.social!.allowedAccounts).has(row.identity!))
+          throw new HttpError(403, 'not-allowed');
+        user = {
+          sub: row.identity!,
+          email: '', // 소셜 사용자의 email은 DB 값과 무관하게 항상 ''
+          authTime: row.createdAt,
+          provider: row.identity!.startsWith('kakao:') ? 'kakao' : 'naver',
+        };
+      }
       if (now - row.lastUsedAt >= TOUCH_INTERVAL) {
         await o.db
           .prepare('UPDATE sessions SET last_used_at = ? WHERE id_hash = ?')
           .bind(now, hash)
           .run();
       }
-      return { userId: row.userId, sessionHash: hash, user };
+      return { userId: row.userId, sessionHash: hash, user: user! };
     },
 
     async list(ctx) {

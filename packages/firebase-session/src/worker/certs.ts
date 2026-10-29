@@ -1,4 +1,5 @@
 // Firebase ID 토큰 서명용 Google 공개 인증서. 응답의 Cache-Control max-age만큼 isolate 메모리에 둔다.
+import { PROVIDER_TIMEOUT_MS } from './http.js';
 import { importX509, type CryptoKey as JoseKey } from 'jose';
 
 export const GOOGLE_CERTS_URL =
@@ -24,7 +25,11 @@ export function googleCerts(
   async function load(): Promise<Map<string, JoseKey>> {
     let res: Response;
     try {
-      res = await fetchImpl(url);
+      res = await fetchImpl(url, {
+        ...(typeof AbortSignal.timeout === 'function' && {
+          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        }),
+      });
     } catch {
       throw new CertsUnavailableError('fetch failed');
     }
