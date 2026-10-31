@@ -21,11 +21,13 @@
 </div>
 
 <style>
+  /* 위치 변수의 기본값: --snack-left와 --snack-right는 0px입니다.
+     --snack-bottom은 1024px 미만 calc(96px + env(safe-area-inset-bottom, 0px)), 이상 32px입니다. */
   .host {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    left: var(--snack-left, 0px);
+    right: var(--snack-right, 0px);
+    bottom: var(--snack-bottom, calc(96px + env(safe-area-inset-bottom, 0px)));
     display: flex;
     justify-content: center;
     z-index: 85;
@@ -33,7 +35,7 @@
   }
   @media (min-width: 1024px) {
     .host {
-      bottom: 32px;
+      bottom: var(--snack-bottom, 32px);
     }
   }
 </style>
