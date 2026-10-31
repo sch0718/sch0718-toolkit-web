@@ -70,7 +70,7 @@ applyTheme('system'); // data-theme을 지워 시스템 설정을 따른다
 | `Segmented`    | `options: { value, label, sub?, disabled?, reason? }[]`, `value`, `onchange(value)`, `label?`, `wide?`, `wrap?`, `onSurface?`(카드 안에 놓을 때) |
 | `Sheet`        | `open`, `title`, `onclose()`, `children`, `returnFocus?()`, `headerEnd?`, `closeLabel?`(닫기 단추의 접근성 이름, 기본 `'닫기'`)                  |
 | `Snackbar`     | `message`, `actionLabel?`, `onaction?`, `onhold?`, `onrelease?`. 보통은 직접 쓰지 않고 `SnackbarHost`가 그린다                                   |
-| `SnackbarHost` | 없음. 앱 루트에 한 번 둔다                                                                                                                       |
+| `SnackbarHost` | 없음. 앱 루트에 한 번 둔다. 위치는 CSS 변수로 정한다(스낵바 절)                                                                                  |
 | `Toggle`       | `checked`, `label`, `onchange(checked)`, `disabled?`, `id?`, `describedby?`, `softDisabled?`                                                     |
 
 ## 스낵바
@@ -91,6 +91,30 @@ applyTheme('system'); // data-theme을 지워 시스템 설정을 따른다
 import { showSnackbar } from '@sch0718/ui-svelte';
 
 showSnackbar('지웠어요', { label: '되돌리기', run: () => restore(row) });
+```
+
+위치는 CSS 변수로 정합니다. 스낵바는 화면 왼쪽·오른쪽에서 `--snack-left`·`--snack-right`만큼 뺀 영역의 가운데에 뜨고, 최대 너비도 그만큼 줄어듭니다. 변수를 주지 않으면 아래 기본값대로 뜹니다.
+
+| 변수             | 기본값                                                                   |
+| ---------------- | ------------------------------------------------------------------------ |
+| `--snack-left`   | `0px`                                                                    |
+| `--snack-right`  | `0px`                                                                    |
+| `--snack-bottom` | 1024px 미만 `calc(96px + env(safe-area-inset-bottom, 0px))`, 이상 `32px` |
+
+값은 `px`·`rem`·`vw`로 지정합니다. `%`와 `em`은 위치와 최대 너비의 기준이 달라 어긋납니다. `--snack-bottom`을 주면 두 화면 구간 모두 그 값을 쓰므로, 구간마다 다르게 하려면 서비스의 미디어 쿼리에서 따로 지정합니다. 기본값의 safe-area도 함께 사라지니 필요하면 직접 더합니다(예: `calc(72px + env(safe-area-inset-bottom, 0px))`).
+
+```css
+/* app.css: 768~1023px는 72px 레일, 1024px 이상은 240px 사이드바 */
+@media (min-width: 768px) {
+  :root {
+    --snack-left: 72px;
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --snack-left: 240px;
+  }
+}
 ```
 
 그 밖의 함수와 타입:

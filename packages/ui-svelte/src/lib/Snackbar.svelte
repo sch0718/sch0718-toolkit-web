@@ -42,7 +42,7 @@
     font-size: 14px;
     box-shadow: var(--shadow);
     min-width: 280px;
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px - var(--snack-left, 0px) - var(--snack-right, 0px));
     animation: snack-in var(--dur-base) var(--ease);
   }
   span {
