@@ -1,5 +1,11 @@
 # @sch0718/ui-svelte
 
+## 0.1.1
+
+### Patch Changes
+
+- [#21](https://github.com/sch0718/sch0718-toolkit-web/pull/21) [`10d09ac`](https://github.com/sch0718/sch0718-toolkit-web/commit/10d09ac2a6b78b076865e60d1e3172226fabac8d) Thanks [@sch0718](https://github.com/sch0718)! - 스낵바 위치를 `--snack-left`·`--snack-right`·`--snack-bottom` CSS 변수로 정할 수 있습니다(주지 않으면 지금과 같은 위치).
+
 ## 0.1.0
 
 ### Minor Changes
