@@ -41,7 +41,8 @@
     gap: 12px;
     font-size: 14px;
     box-shadow: var(--shadow);
-    min-width: 280px;
+    /* 가용 너비가 280px보다 좁으면 min-width가 max-width를 이기지 않도록 같이 줄인다. */
+    min-width: min(280px, calc(100vw - 32px - var(--snack-left, 0px) - var(--snack-right, 0px)));
     max-width: calc(100vw - 32px - var(--snack-left, 0px) - var(--snack-right, 0px));
     animation: snack-in var(--dur-base) var(--ease);
   }

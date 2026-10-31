@@ -73,6 +73,14 @@ describe('Snackbar 위치', () => {
     );
   });
 
+  it('가용 너비가 280px보다 좁으면 최소 너비도 함께 줄인다', () => {
+    const snack = block(resolve(snackCss, { '--snack-left': '240px' }), '.snack');
+    expect(snack).toContain('min-width: min(280px, calc(100vw - 32px - 240px - 0px));');
+    expect(block(resolve(snackCss, {}), '.snack')).toContain(
+      'min-width: min(280px, calc(100vw - 32px - 0px - 0px));',
+    );
+  });
+
   it('오른쪽 여백도 위치와 최대 너비에 반영한다', () => {
     const vars = { '--snack-right': '16px' };
     expect(block(resolve(hostCss, vars), '.host')).toContain('right: 16px;');
