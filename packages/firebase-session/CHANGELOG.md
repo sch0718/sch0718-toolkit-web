@@ -1,5 +1,11 @@
 # @sch0718/firebase-session
 
+## 0.3.0
+
+### Minor Changes
+
+- [#24](https://github.com/sch0718/sch0718-toolkit-web/pull/24) [`84dc344`](https://github.com/sch0718/sch0718-toolkit-web/commit/84dc34446484e81049712cb1a72915bc65ee3415) Thanks [@sch0718](https://github.com/sch0718)! - `createSessionAuth`에 `isAllowed` 옵션을 더했습니다. 고정 목록(`allowedEmails`·`social.allowedAccounts`)에 없는 사용자를 서비스가 판단하고, 세션을 만드는 요청에서는 본문(예: 초대 코드)을 함께 받습니다. 브라우저 `createSession`·`createSocialSession`은 본문에 더할 `extra`를 받습니다. 기존 고정 목록 동작은 그대로입니다.
+
 ## 0.2.1
 
 ### Patch Changes
