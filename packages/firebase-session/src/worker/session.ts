@@ -208,7 +208,14 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
         o.social,
         now,
         REAUTH_WINDOW,
-        isAllowed && ((identity, provider) => isAllowed({ identity, provider }, { body })),
+        isAllowed &&
+          ((identity, provider) => {
+            // 인가 코드·PKCE verifier는 서비스에 넘기지 않는다(로그·오류에 섞이지 않게)
+            const rest = { ...(body as Record<string, unknown>) };
+            delete rest['code'];
+            delete rest['codeVerifier'];
+            return isAllowed({ identity, provider }, { body: rest });
+          }),
       );
       return { ...(await saveSession(user, cleanLabel(label, defaultLabel), now, user.sub)), user };
     },

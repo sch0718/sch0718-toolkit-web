@@ -116,7 +116,14 @@ describe('isAllowed: 소셜', () => {
     const body = { ...socialBody, invite: 'code' };
     const r = await s.auth.createSocial(s.req(), body);
     expect(r.user.sub).toBe('kakao:AbC');
-    expect(s.spy).toHaveBeenCalledWith({ identity: 'kakao:AbC', provider: 'kakao' }, { body });
+    const rest: Record<string, unknown> = { ...body };
+    delete rest['code'];
+    delete rest['codeVerifier'];
+    expect(s.spy).toHaveBeenCalledWith(
+      { identity: 'kakao:AbC', provider: 'kakao' },
+      { body: rest },
+    );
+    expect(JSON.stringify(s.spy.mock.calls)).not.toContain(socialBody.codeVerifier);
   });
 
   it('false면 403 not-allowed와 account', async () => {

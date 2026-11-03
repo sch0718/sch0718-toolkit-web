@@ -57,6 +57,8 @@ createSessionAuth({
 
 - 부르는 곳: Google 토큰 검사(매 요청과 `create`), 소셜 `createSocial`(공급자 토큰 검증 뒤), 소셜 세션 인증(매 요청). 매 요청에서 `false`가 되면 403 `not-allowed`이므로 멤버에서 빼면 바로 막힙니다.
 - `email_verified`가 아니거나 이메일이 비면 부르지 않습니다. Google 가입(`create`)은 재인증 창(`REAUTH_WINDOW`) 안의 토큰일 때만 부르므로, 가입 부수효과가 오래된 토큰으로 일어나지 않습니다.
+- 소셜 가입의 `signup.body`에서는 인가 코드(`code`)와 `codeVerifier`를 뺍니다.
+- `true`를 돌려준 뒤 세션 저장이 실패할 수 있습니다. 가입 부수효과는 멱등으로 만드세요(예: 이미 멤버면 다시 통과).
 - `HttpError`를 던지면 그 상태·코드로 응답합니다. 브라우저 클라이언트는 `createSession(idToken, label, extra)`·`createSocialSession(input, label, extra)`의 `extra`로 본문 필드를 더합니다(`label`과 소셜 입력 필드가 이깁니다).
 
 **스키마.** 패키지의 `migrations/0001_users_sessions.sql`을 서비스의 `migrations/`에 복사해 적용합니다. 파일 번호는 서비스가 자기 마이그레이션 순서에 맞춰 정합니다. 서비스 마이그레이션 가운데 맨 앞에 두거나, 적어도 `users(id)`를 참조하는 테이블보다 앞에 둡니다. 앞으로 패키지 스키마가 바뀌면 `firebase-session-NNNN_*.sql` 이름의 새 파일로 내보내고 변경 기록에 적습니다. 서비스는 그 파일도 같은 방식으로 복사해 번호를 붙입니다. 오래된 세션은 Cron에서 `purgeSessions(db, now)`로 지웁니다.
