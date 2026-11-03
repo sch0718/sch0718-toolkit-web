@@ -66,9 +66,11 @@ export interface SessionClientOptions<X extends Fail> {
 
 export interface SessionClient<X extends Fail = never> {
   send<T>(method: string, path: string, opts?: SendOptions): Promise<ApiResult<T, BaseFail | X>>;
+  /** extra는 본문에 더할 서비스 필드(예: 초대 코드). label이 이긴다. */
   createSession(
     idToken: string,
     label: string,
+    extra?: Record<string, unknown>,
   ): Promise<ApiResult<{ sessionId: string; expiresAt: number }, BaseFail | X>>;
   createSocialSession(
     input: {
@@ -78,6 +80,8 @@ export interface SessionClient<X extends Fail = never> {
       redirectUri: string;
     },
     label: string,
+    /** 본문에 더할 서비스 필드. 입력 필드와 label이 이긴다. */
+    extra?: Record<string, unknown>,
   ): Promise<
     ApiResult<
       {
@@ -255,10 +259,10 @@ export function createSessionClient<X extends Fail = never>(
   const enc = encodeURIComponent;
   return {
     send,
-    createSession: (idToken, label) =>
-      send('POST', '/v1/session', { auth: 'token', token: idToken, body: { label } }),
-    createSocialSession: (input, label) =>
-      send('POST', '/v1/session/social', { auth: 'none', body: { ...input, label } }),
+    createSession: (idToken, label, extra) =>
+      send('POST', '/v1/session', { auth: 'token', token: idToken, body: { ...extra, label } }),
+    createSocialSession: (input, label, extra) =>
+      send('POST', '/v1/session/social', { auth: 'none', body: { ...extra, ...input, label } }),
     endSession: () => send('DELETE', '/v1/session'),
     listSessions: () => send('GET', '/v1/sessions'),
     revokeSession: (id) =>

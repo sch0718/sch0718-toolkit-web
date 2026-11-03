@@ -40,6 +40,25 @@ const sessions = createSessionAuth({
 
 엔드포인트(`SESSION_PATHS`)는 서비스 라우터가 연결합니다: `POST /v1/session`(create), `DELETE /v1/session`(revoke current), `GET /v1/sessions`(list), `DELETE /v1/sessions?others=1`, `DELETE /v1/sessions/:id`. 실패는 `HttpError`(401·403·404)로, 인증서를 받지 못하면 `CertsUnavailableError`로 던집니다(503으로 바꾸세요).
 
+**서비스가 허용 여부를 판단하기.** 고정 목록 밖의 사용자(예: 초대받은 멤버)를 들이려면 `isAllowed`를 줍니다. 목록에 있으면 부르지 않습니다.
+
+```ts
+createSessionAuth({
+  // ...위와 같음
+  isAllowed: async ({ identity, provider }, signup) => {
+    // identity: Google은 email_verified인 소문자 이메일, 소셜은 'kakao:<sub>'·'naver:<sub>'
+    // signup: 세션을 만드는 요청에서만 있다. body는 요청 본문 그대로(예: { label, invite })
+    if (await isMember(identity)) return true;
+    if (!signup) return false;
+    return redeemInvite(identity, signup.body); // 틀리면 throw new HttpError(403, 'invite-invalid')
+  },
+});
+```
+
+- 부르는 곳: Google 토큰 검사(매 요청과 `create`), 소셜 `createSocial`(공급자 토큰 검증 뒤), 소셜 세션 인증(매 요청). 매 요청에서 `false`가 되면 403 `not-allowed`이므로 멤버에서 빼면 바로 막힙니다.
+- `email_verified`가 아니거나 이메일이 비면 부르지 않습니다. Google 가입(`create`)은 재인증 창(`REAUTH_WINDOW`) 안의 토큰일 때만 부르므로, 가입 부수효과가 오래된 토큰으로 일어나지 않습니다.
+- `HttpError`를 던지면 그 상태·코드로 응답합니다. 브라우저 클라이언트는 `createSession(idToken, label, extra)`·`createSocialSession(input, label, extra)`의 `extra`로 본문 필드를 더합니다(`label`과 소셜 입력 필드가 이깁니다).
+
 **스키마.** 패키지의 `migrations/0001_users_sessions.sql`을 서비스의 `migrations/`에 복사해 적용합니다. 파일 번호는 서비스가 자기 마이그레이션 순서에 맞춰 정합니다. 서비스 마이그레이션 가운데 맨 앞에 두거나, 적어도 `users(id)`를 참조하는 테이블보다 앞에 둡니다. 앞으로 패키지 스키마가 바뀌면 `firebase-session-NNNN_*.sql` 이름의 새 파일로 내보내고 변경 기록에 적습니다. 서비스는 그 파일도 같은 방식으로 복사해 번호를 붙입니다. 오래된 세션은 Cron에서 `purgeSessions(db, now)`로 지웁니다.
 
 ## 브라우저

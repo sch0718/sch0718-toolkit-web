@@ -61,6 +61,16 @@ export interface SessionAuthOptions {
   /** n바이트 무작위 값 */
   random: (n: number) => Uint8Array;
   uuid: () => string;
+  /**
+   * 고정 목록(allowedEmails·social.allowedAccounts)에 없는 사용자를 서비스가 판단한다. 목록에 있으면 부르지 않는다.
+   * identity: Google은 email_verified인 소문자 이메일, 소셜은 'kakao:<sub>'·'naver:<sub>'.
+   * signup: 세션을 만드는 요청(create·createSocial)에서만 있고 요청 본문을 그대로 담는다(예: 초대 코드).
+   * Google 가입은 재인증 창 안의 토큰일 때만 부른다. HttpError를 던지면 그 상태·코드로 응답한다.
+   */
+  isAllowed?: (
+    who: { identity: string; provider: 'google' | SocialProvider },
+    signup?: { body: unknown },
+  ) => boolean | Promise<boolean>;
 }
 
 export interface SessionAuth {
@@ -114,15 +124,25 @@ async function socialQuery<T>(enabled: boolean, query: () => Promise<T>): Promis
 export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
   const defaultLabel = o.defaultLabel ?? '이름 없는 기기';
 
-  async function verifiedUser(req: Request): Promise<VerifiedUser> {
+  async function verifiedUser(req: Request, signup?: { body: unknown }): Promise<VerifiedUser> {
     const token = bearer(req);
     if (!token) throw new HttpError(401, 'missing-token');
+    const now = o.now();
+    const isAllowed = o.isAllowed;
     try {
       return await verifyIdToken(token, {
         projectId: o.projectId,
         certs: o.certs,
-        now: o.now(),
+        now,
         allowedEmails: parseAllowList(o.allowedEmails),
+        ...(isAllowed && {
+          isAllowed: (user: VerifiedUser) => {
+            // 가입 부수효과(예: 멤버 등록)가 오래된 토큰으로 일어나지 않게 재인증 창을 먼저 본다
+            if (signup && now - user.authTime > REAUTH_WINDOW)
+              throw new HttpError(401, 'reauth-required');
+            return isAllowed({ identity: user.email, provider: 'google' }, signup);
+          },
+        }),
       });
     } catch (e) {
       if (e instanceof AuthError) throw new HttpError(e.code === 'not-allowed' ? 403 : 401, e.code);
@@ -167,10 +187,10 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
   }
 
   return {
-    verifiedUser,
+    verifiedUser: (req) => verifiedUser(req),
 
     async create(req, body) {
-      const user = await verifiedUser(req);
+      const user = await verifiedUser(req, { body });
       const now = o.now();
       if (now - user.authTime > REAUTH_WINDOW) throw new HttpError(401, 'reauth-required');
       const raw =
@@ -182,7 +202,14 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
     async createSocial(_req, body) {
       if (!o.social) throw new HttpError(404, 'not-found');
       const now = o.now();
-      const { user, label } = await exchangeSocial(body, o.social, now, REAUTH_WINDOW);
+      const isAllowed = o.isAllowed;
+      const { user, label } = await exchangeSocial(
+        body,
+        o.social,
+        now,
+        REAUTH_WINDOW,
+        isAllowed && ((identity, provider) => isAllowed({ identity, provider }, { body })),
+      );
       return { ...(await saveSession(user, cleanLabel(label, defaultLabel), now, user.sub)), user };
     },
 
@@ -219,13 +246,18 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       const now = o.now();
       if (row.lastUsedAt + SESSION_TTL <= now) throw new HttpError(401, 'session-expired');
       if (sessionOnly) {
-        if (!parseAccountList(o.social!.allowedAccounts).has(row.identity!))
+        const identity = row.identity!;
+        const provider = identity.startsWith('kakao:') ? 'kakao' : 'naver';
+        if (
+          !parseAccountList(o.social!.allowedAccounts).has(identity) &&
+          !(await o.isAllowed?.({ identity, provider }, undefined))
+        )
           throw new HttpError(403, 'not-allowed');
         user = {
-          sub: row.identity!,
+          sub: identity,
           email: '', // 소셜 사용자의 email은 DB 값과 무관하게 항상 ''
           authTime: row.createdAt,
-          provider: row.identity!.startsWith('kakao:') ? 'kakao' : 'naver',
+          provider,
         };
       }
       if (now - row.lastUsedAt >= TOUCH_INTERVAL) {
