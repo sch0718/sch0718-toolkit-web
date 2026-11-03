@@ -36,11 +36,18 @@ export function parseAllowList(raw: string | undefined): Set<string> {
 
 /**
  * 서명(RS256, kid의 Google 공개키)·aud·iss·exp·iat·auth_time·sub를 검사하고, email_verified인 허용 이메일만 통과시킨다.
+ * 목록에 없으면 isAllowed(있을 때)에 묻는다. email_verified가 아니거나 이메일이 비면 묻지 않는다.
  * 인증서를 받지 못하면 CertsUnavailableError를 그대로 던진다(503).
  */
 export async function verifyIdToken(
   token: string,
-  opts: { projectId: string; certs: CertSource; now: number; allowedEmails: Set<string> },
+  opts: {
+    projectId: string;
+    certs: CertSource;
+    now: number;
+    allowedEmails: Set<string>;
+    isAllowed?: (user: VerifiedUser) => boolean | Promise<boolean>;
+  },
 ): Promise<VerifiedUser> {
   if (!opts.projectId) throw new AuthError('invalid-token');
   let header: ReturnType<typeof decodeProtectedHeader>;
@@ -80,7 +87,9 @@ export async function verifyIdToken(
     throw new AuthError('invalid-token');
 
   const email = typeof payload['email'] === 'string' ? payload['email'].toLowerCase() : '';
-  if (payload['email_verified'] !== true || !email || !opts.allowedEmails.has(email))
+  if (payload['email_verified'] !== true || !email) throw new AuthError('not-allowed');
+  const user = { sub, email, authTime: authTime * 1000 };
+  if (!opts.allowedEmails.has(email) && !(await opts.isAllowed?.(user)))
     throw new AuthError('not-allowed');
-  return { sub, email, authTime: authTime * 1000 };
+  return user;
 }

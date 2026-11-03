@@ -36,6 +36,18 @@ describe('소셜 세션 클라이언트', () => {
     expect(s.idToken).not.toHaveBeenCalled();
     expect(s.sessionId).not.toHaveBeenCalled();
   });
+  it('extra 필드를 본문에 더하되 입력·label이 이긴다', async () => {
+    const s = setup();
+    await s.api.createSocialSession(input, '폰', { invite: 'abc', code: 'x', label: 'y' });
+    const body = JSON.parse(String(s.fetch.mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body).toEqual({ ...input, label: '폰', invite: 'abc' });
+  });
+  it('createSession도 extra를 더하고 label이 이긴다', async () => {
+    const s = setup();
+    await s.api.createSession('tok', '폰', { invite: 'abc', label: 'y' });
+    const body = JSON.parse(String(s.fetch.mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body).toEqual({ invite: 'abc', label: '폰' });
+  });
   it('allowSessionOnly면 세션만 붙인다', async () => {
     const s = setup({ allowSessionOnly: true });
     expect(await s.api.listSessions()).toEqual({ ok: true, data: {} });

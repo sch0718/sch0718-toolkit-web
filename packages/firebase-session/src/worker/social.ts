@@ -169,6 +169,7 @@ export async function exchangeSocial(
   o: SocialLoginOptions,
   now: number,
   reauthWindow: number,
+  isAllowed?: (account: string, provider: SocialProvider) => boolean | Promise<boolean>,
 ) {
   const b = readBody(body, o);
   const config = o[b.provider]!;
@@ -205,7 +206,10 @@ export async function exchangeSocial(
     throw new HttpError(401, 'invalid-token');
   const verified = await verifySocialIdToken(raw.id_token, b, o, now, reauthWindow);
   const account = `${b.provider}:${verified.sub}`;
-  if (!parseAccountList(o.allowedAccounts).has(account))
+  if (
+    !parseAccountList(o.allowedAccounts).has(account) &&
+    !(await isAllowed?.(account, b.provider))
+  )
     throw new HttpError(403, 'not-allowed', { account });
   return { user: { ...verified, sub: account, provider: b.provider }, label: b.label };
 }
