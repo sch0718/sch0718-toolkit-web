@@ -160,6 +160,10 @@ JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 �
 
 허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 항상 빈 문자열입니다. 소셜 사용자의 이메일은 식별·인가에 쓰지 않습니다. 공급자 토큰에 문자열 이메일이 있으면 `createSocial`/`createSocialSession` 결과의 `user.unverifiedEmail`로만 소문자화해 줍니다(검증되지 않은 값, 표시용). 없으면 필드 자체를 넣지 않습니다. DB에 저장하거나 `VerifiedUser`에 더하지 않습니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
 
+### Google 세션 전용 인증(`googleSessionOnly`)
+
+Google도 소셜처럼 세션만으로 인증하려면 `googleSessionOnly: true`를 줍니다(예: 세션 쿠키만 실어 오는 정적 사이트). 켜면 `create`가 세션의 `identity`에 소문자 이메일을 넣고, `authenticate`는 `Authorization` 없는 요청을 그 세션만으로 인증합니다. 허용 판정은 매 요청 `allowedEmails`를 보고, 없으면 `isAllowed({ identity: 이메일, provider: 'google' })`에 묻습니다. 사용자 객체는 토큰 경로와 같은 `{ sub, email, authTime }`이고 `authTime`은 세션을 만든 시각입니다. `social` 없이도 쓸 수 있지만 0002 마이그레이션은 필요합니다(빠뜨리면 위와 같은 오류 문구). 옵션을 끄면 이미 만든 이메일 세션도 다시 ID 토큰이 있어야 하고(`missing-token`), 소셜 세션은 `social` 설정대로 인증합니다. 토큰이 있는 요청은 옵션과 무관하게 기존 검증 경로로 갑니다.
+
 ### 브라우저
 
 ```ts

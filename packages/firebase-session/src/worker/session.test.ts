@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { createTestD1 } from '../../test/d1.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createTestD1, type TestD1 } from '../../test/d1.js';
+import { CLIENT_ID, socialBody, socialToken } from '../../test/social.js';
 import { certs, ME, OTHER, PROJECT, T0, token } from '../../test/tokens.js';
 import { HttpError } from './http.js';
 import {
   createSessionAuth,
+  type SessionAuthOptions,
   KEEP_AFTER_END,
   purgeSessions,
   REAUTH_WINDOW,
@@ -171,6 +173,126 @@ describe('authenticate', () => {
     s.clock.now += TOUCH_INTERVAL / 2 + 60_000;
     await s.auth.authenticate(await me.as());
     expect(used()).toBe(s.clock.now);
+  });
+});
+
+describe('googleSessionOnly', () => {
+  const clock = { now: T0 };
+  function make(
+    db: TestD1,
+    o: Partial<
+      Pick<SessionAuthOptions, 'googleSessionOnly' | 'social' | 'isAllowed' | 'allowedEmails'>
+    > = {},
+  ) {
+    return createSessionAuth({
+      db,
+      projectId: PROJECT,
+      allowedEmails: ME,
+      certs,
+      sessionHeader: HEADER,
+      now: () => clock.now,
+      random: (len) => crypto.getRandomValues(new Uint8Array(len)),
+      uuid: () => crypto.randomUUID(),
+      ...o,
+    });
+  }
+  const social = () => ({
+    allowedAccounts: 'kakao:AbC,naver:AbC',
+    kakao: { clientId: CLIENT_ID },
+    naver: { clientId: CLIENT_ID },
+    keys: { kakao: certs, naver: certs },
+    fetch: async (url: string | URL | Request) =>
+      Response.json({
+        id_token: await socialToken(
+          String(url).includes('naver') ? { iss: 'https://nid.naver.com' } : {},
+        ),
+      }),
+  });
+  const req = (sessionId?: string, authorization?: string) =>
+    new Request('https://api.example.test/v1/x', {
+      headers: {
+        ...(sessionId && { [HEADER]: sessionId }),
+        ...(authorization && { Authorization: authorization }),
+      },
+    });
+  const google = async (auth: ReturnType<typeof make>, email = ME.toUpperCase()) =>
+    (await auth.create(req(undefined, `Bearer ${await token(clock.now, { email })}`), {}))
+      .sessionId;
+  const code = (p: Promise<unknown>) =>
+    p.then(
+      () => 'ok',
+      (e: unknown) => (e instanceof HttpError ? `${e.status} ${e.code}` : e),
+    );
+
+  it('켜면 ID 토큰 없이 Google 세션만으로 인증하고, identity는 소문자 이메일', async () => {
+    clock.now = T0;
+    const db = createTestD1();
+    const auth = make(db, { googleSessionOnly: true });
+    const sessionId = await google(auth);
+    expect(db.raw.prepare('SELECT identity FROM sessions').get()).toEqual({ identity: ME });
+    expect((await auth.authenticate(req(sessionId))).user).toEqual({
+      sub: 'uid-me',
+      email: ME,
+      authTime: T0,
+    });
+  });
+
+  it.each([false, true])(
+    '켜서 만든 Google 세션을 끈 인증기(social %s)로 읽으면 missing-token',
+    async (withSocial) => {
+      clock.now = T0;
+      const db = createTestD1();
+      const sessionId = await google(make(db, { googleSessionOnly: true }));
+      const off = make(db, withSocial ? { social: social() } : {});
+      expect(await code(off.authenticate(req(sessionId)))).toBe('401 missing-token');
+    },
+  );
+
+  it.each([true, false])('Google·소셜 혼합, 옵션 %s', async (on) => {
+    clock.now = T0;
+    const db = createTestD1();
+    const auth = make(db, { social: social(), googleSessionOnly: on });
+    const g = await google(make(db, { googleSessionOnly: true }));
+    const k = (await auth.createSocial(req(), socialBody)).sessionId;
+    const n = (await auth.createSocial(req(), { ...socialBody, provider: 'naver' })).sessionId;
+    expect(await code(auth.authenticate(req(g)))).toBe(on ? 'ok' : '401 missing-token');
+    expect((await auth.authenticate(req(k))).user.provider).toBe('kakao');
+    expect((await auth.authenticate(req(n))).user.provider).toBe('naver');
+  });
+
+  it('철회·만료는 401, 허용 목록에서 빠지면 403(isAllowed는 목록 다음)', async () => {
+    clock.now = T0;
+    const db = createTestD1();
+    const auth = make(db, { googleSessionOnly: true });
+    const a = await google(auth);
+    const b = await google(auth);
+    await auth.revoke(await auth.authenticate(req(a)), 'current');
+    expect(await code(auth.authenticate(req(a)))).toBe('401 session-revoked');
+
+    const isAllowed = vi.fn(() => false);
+    const out = make(db, { googleSessionOnly: true, allowedEmails: '', isAllowed });
+    expect(await code(out.authenticate(req(b)))).toBe('403 not-allowed');
+    expect(isAllowed).toHaveBeenCalledWith({ identity: ME, provider: 'google' }, undefined);
+    isAllowed.mockReturnValue(true);
+    expect(await code(out.authenticate(req(b)))).toBe('ok');
+    isAllowed.mockClear();
+    expect(await code(auth.authenticate(req(b)))).toBe('ok');
+    expect(isAllowed).not.toHaveBeenCalled();
+
+    clock.now += SESSION_TTL;
+    expect(await code(auth.authenticate(req(b)))).toBe('401 session-expired');
+  });
+
+  it('0002 마이그레이션이 없으면 기존 오류 문구', async () => {
+    clock.now = T0;
+    const auth = make(createTestD1(['0001_users_sessions.sql']), { googleSessionOnly: true });
+    for (const call of [() => google(auth), () => auth.authenticate(req('x'.repeat(43)))]) {
+      const e = await call().catch((x: unknown) => x);
+      expect(e).not.toBeInstanceOf(HttpError);
+      expect((e as Error).message).toBe(
+        '@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다',
+      );
+    }
   });
 });
 
