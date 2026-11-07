@@ -22,18 +22,18 @@
 - `handleSessionRoute()`, `SessionRouteOptions`(설계 2.1). `SESSION_PATHS`를 써서 경로를 맞춘다.
 - 시험(`src/worker/routes.test.ts` 새 파일): `test/d1.ts`·`test/tokens.ts`·`test/social.ts`로 실제 `createSessionAuth`를 만든다.
   - 6개 경로 성공(상태 200, 본문 모양, `Cache-Control: no-store`)
-  - 세션 경로 밖(`/v1/other`, `/v1/session/`, `/v1/sessions/a/b`) → `null`, 같은 경로 다른 메서드 → 405 `method`
+  - 세션 경로 밖(`/v1/other`, `/v1/session/`, `/v1/sessions/`(빈 `:id`), `/v1/sessions/a/b`) → `null`, 같은 경로 다른 메서드 → 405 `method`이고 이때도 `onRoute`가 그 패턴으로 한 번 불림
   - `path` 옵션으로 접두어를 뗀 경로를 맞춤
   - `DELETE /v1/sessions`: 쿼리 없음·`others=0`·`others=1&x=1` → 400 `bad-request`, 세션이 철회되지 않음
   - `DELETE /v1/sessions/%E0%A4%A` → 404 `not-found`
   - 인증 실패(세션 헤더 없음) → 401, 이때 `onRevoke`를 부르지 않음
-  - `onRoute` 패턴 값, `beforeCreate`가 본문을 읽기 전에 불리고 `HttpError`를 던지면 그 응답, `onRevoke` 인자(대상·`revoked` 수)
-  - 오류 변환: `CertsUnavailableError` → 503, 일반 `Error` → 500과 `log`의 `internal <이름>`, `Error`가 아닌 값 → `internal error`, `@sch0718/firebase-session:` 문구 → 500과 그 문구
+  - `onRoute` 패턴 값, `beforeCreate`가 본문을 읽기 전에 불리고 `HttpError`를 던지면 그 응답, `onRevoke` 인자(대상·`revoked` 수), `onRevoke`가 불릴 때 DB에서 이미 철회돼 있음
+  - 오류 변환: `CertsUnavailableError` → 503, 일반 `Error` → 500과 `log`의 `internal <이름>`, `Error`가 아닌 값 → `internal error`, `@sch0718/firebase-session:` 문구 → 응답은 500 `{ error: 'internal' }`, `log`에만 그 문구
 - `src/worker/index.ts`에 `handleSessionRoute`, `type SessionRouteOptions`, `parseRedirectUris`, `socialLoginOptions`를 더한다.
 
 ## 4. 문서·기록
 
-- `README.md`의 Worker 절만 고친다: 라우터 예시를 `handleSessionRoute`로, 소셜 예시를 `socialLoginOptions`로, 상태 코드 결정 한 줄. 개발·시험 절은 건드리지 않는다.
+- `README.md`의 `## Worker` 절에 있는 엔드포인트 설명 문단을 새 처리기 안내와 상태 코드 결정 한 줄로 고친다. `## 카카오·네이버 로그인` 아래 `### 마이그레이션과 Worker` 절의 라우터 예시는 `handleSessionRoute`로, 소셜 설정 예시는 `socialLoginOptions`로 바꾼다(해당 코드 블록의 import 포함). README의 개발·시험 절은 건드리지 않는다.
 - `.changeset/<이름>.md`: `@sch0718/firebase-session` minor. 새 API와 동작 변화(본문 redirect 사용자 정보 거부).
 - `.size-limit.json`의 worker 항목 import에 `handleSessionRoute`·`socialLoginOptions`를 더한다. 한도(4.1 kB)를 넘으면 실제 크기에 맞춰 올리고 PR에 적는다.
 

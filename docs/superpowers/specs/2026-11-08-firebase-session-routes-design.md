@@ -148,7 +148,7 @@ social: socialLoginOptions({
 ## 5. 범위 밖
 
 - 서비스 적용(라우터 교체, 지울 파일), 소셜 외 서비스 API 라우팅, 빈도 제한 장치 자체, CORS 헤더 자동 추가.
-- `firebase-session/testing` 진입점과 `package.json` exports, README의 개발·시험 절은 다른 세션 몫이다. 이 작업은 `src/worker/`와 README의 Worker 절만 고친다.
+- `firebase-session/testing` 진입점과 `package.json` exports, README의 개발·시험 절은 다른 세션 몫이다. README 수정 대상은 `## Worker` 절의 엔드포인트 설명 문단과 `## 카카오·네이버 로그인` 아래 `### 마이그레이션과 Worker` 절의 라우터·소셜 설정 예시(해당 코드 블록의 import 포함)다. README의 개발·시험 절은 건드리지 않는다.
 
 ## 6. 하위 호환
 
