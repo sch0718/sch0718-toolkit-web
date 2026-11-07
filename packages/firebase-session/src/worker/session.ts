@@ -1,6 +1,6 @@
 // D1 자체 세션: 기기별, 마지막 사용 후 30일 슬라이딩 만료, 기기별·전체 철회.
-// 세션 원문은 기기에만 있고 D1에는 SHA-256 hex만 둔다. 소셜 세션만 ID 토큰 없이 인증한다.
-// 테이블: migrations/0001_users_sessions.sql, 소셜 세션은 firebase-session-0002_social_sessions.sql도 적용.
+// 세션 원문은 기기에만 있고 D1에는 SHA-256 hex만 둔다. 소셜 세션(googleSessionOnly면 Google 세션도)은 ID 토큰 없이 인증한다.
+// 테이블: migrations/0001_users_sessions.sql, 세션 전용 인증은 firebase-session-0002_social_sessions.sql도 적용.
 import {
   parseAccountList,
   exchangeSocial,
@@ -48,6 +48,11 @@ export interface DeviceSessionRow {
 export interface SessionAuthOptions {
   db: D1Database;
   social?: SocialLoginOptions;
+  /**
+   * 켜면 Google 세션도 ID 토큰 없이 세션만으로 인증한다(create가 identity에 소문자 이메일을 넣는다).
+   * 허용 목록은 매 요청 다시 확인한다. 0002 마이그레이션이 필요하다.
+   */
+  googleSessionOnly?: boolean;
   /** Firebase 프로젝트 ID. 토큰의 aud·iss를 이것으로 검사한다. */
   projectId: string;
   /** 콤마로 구분한 허용 이메일(secret). 비어 있으면 아무도 들어오지 못한다. */
@@ -196,7 +201,7 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       const raw =
         typeof body === 'object' && body !== null ? (body as { label?: unknown }).label : undefined;
       const label = cleanLabel(raw, defaultLabel);
-      return saveSession(user, label, now);
+      return saveSession(user, label, now, o.googleSessionOnly ? user.email : undefined);
     },
 
     async createSocial(_req, body) {
@@ -221,18 +226,18 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
     },
 
     async authenticate(req) {
-      const sessionOnly = o.social && !req.headers.has('Authorization');
+      const sessionOnly = !!(o.social || o.googleSessionOnly) && !req.headers.has('Authorization');
       let user = sessionOnly ? null : await verifiedUser(req);
       const raw = req.headers.get(o.sessionHeader);
       if (!raw || !/^[A-Za-z0-9_-]{43}$/.test(raw))
         throw new HttpError(401, sessionOnly ? 'missing-token' : 'no-session');
       const hash = await sha256Hex(raw);
-      const row = await socialQuery(!!sessionOnly, () =>
+      const row = await socialQuery(sessionOnly, () =>
         o.db
           .prepare(
             sessionOnly
               ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
-           s.identity, s.created_at AS createdAt
+           s.identity, s.created_at AS createdAt, u.firebase_sub AS sub
            FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = ?`
               : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
            FROM sessions s JOIN users u ON u.id = s.user_id
@@ -245,27 +250,31 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
             revokedAt: number | null;
             identity: string | null;
             createdAt: number;
+            sub: string;
           }>(),
       );
       if (!row) throw new HttpError(401, 'no-session');
-      if (sessionOnly && row.identity === null) throw new HttpError(401, 'missing-token');
+      // 이메일 identity(Google)는 googleSessionOnly일 때만, kakao:·naver:는 social이 있을 때만 세션 전용으로 받는다
+      const identity = row.identity;
+      const social = /^(kakao|naver):/.exec(identity ?? '')?.[1] as SocialProvider | undefined;
+      if (sessionOnly && (identity === null || !(social ? o.social : o.googleSessionOnly)))
+        throw new HttpError(401, 'missing-token');
       if (row.revokedAt !== null) throw new HttpError(401, 'session-revoked');
       const now = o.now();
       if (row.lastUsedAt + SESSION_TTL <= now) throw new HttpError(401, 'session-expired');
       if (sessionOnly) {
-        const identity = row.identity!;
-        const provider = identity.startsWith('kakao:') ? 'kakao' : 'naver';
+        const id = identity!;
         if (
-          !parseAccountList(o.social!.allowedAccounts).has(identity) &&
-          !(await o.isAllowed?.({ identity, provider }, undefined))
+          !(
+            social ? parseAccountList(o.social!.allowedAccounts) : parseAllowList(o.allowedEmails)
+          ).has(id) &&
+          !(await o.isAllowed?.({ identity: id, provider: social ?? 'google' }, undefined))
         )
           throw new HttpError(403, 'not-allowed');
-        user = {
-          sub: identity,
-          email: '', // 소셜 사용자의 email은 DB 값과 무관하게 항상 ''
-          authTime: row.createdAt,
-          provider,
-        };
+        user = social
+          ? // 소셜 사용자의 email은 DB 값과 무관하게 항상 ''
+            { sub: id, email: '', authTime: row.createdAt, provider: social }
+          : { sub: row.sub, email: id, authTime: row.createdAt };
       }
       if (now - row.lastUsedAt >= TOUCH_INTERVAL) {
         await o.db
