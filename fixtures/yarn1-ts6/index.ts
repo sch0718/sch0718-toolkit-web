@@ -49,3 +49,18 @@ const css: string = motionCss({
 motionCss({ sceneLength: 3, scenes: 2, effects: [] });
 export const svg: string = svgDocument({ w: 10, h: 10, title: 't', desc: 'd', css, body: '' });
 export const width: number = textWidth('가나', 12);
+
+// Node 타입 없이 개발·시험 진입점의 선언을 검사한다.
+import {
+  createFakeSocial,
+  createTestTokens,
+  FAKE_CLIENT_IDS,
+  fakeAuthorizeUrl,
+} from '@sch0718/firebase-session/testing';
+export const fakeSocial = createFakeSocial({ basePath: '/dev/fake-social' });
+export const fakeClientId: string = FAKE_CLIENT_IDS.kakao;
+export const testTokens = createTestTokens({ projectId: 'compat-test' });
+export const fakeUrl: string = fakeAuthorizeUrl(
+  'https://kauth.kakao.com/oauth/authorize?state=s',
+  'http://localhost/dev/fake-social',
+);

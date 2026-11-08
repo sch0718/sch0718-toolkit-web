@@ -158,3 +158,18 @@ export const deniedAccount: BaseFail = { ok: false, kind: 'not-allowed', account
 export const derivedNonce: Promise<string> = socialNonce('v'.repeat(43));
 export const redirectFailure: Extract<SocialCallback, { ok: false }>['reason'] =
   'redirect-mismatch';
+
+// 개발·시험 진입점의 선언을 검사한다(Node 타입 없이는 yarn1-ts6에서 검사).
+import {
+  createFakeSocial,
+  createTestTokens,
+  FAKE_CLIENT_IDS,
+  fakeAuthorizeUrl,
+} from '@sch0718/firebase-session/testing';
+export const fakeSocial = createFakeSocial({ basePath: '/dev/fake-social' });
+export const fakeClientId: string = FAKE_CLIENT_IDS.kakao;
+export const testTokens = createTestTokens({ projectId: 'compat-test' });
+export const fakeUrl: string = fakeAuthorizeUrl(
+  'https://kauth.kakao.com/oauth/authorize?state=s',
+  'http://localhost/dev/fake-social',
+);
