@@ -1,14 +1,21 @@
 import { createHash } from 'node:crypto';
 import { socialNonce } from '../client/social.js';
 import { exportJWK, SignJWT, UnsecuredJWT } from 'jose';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { createTestD1 } from '../../test/d1.js';
 import { CLIENT_ID, NONCE, publicJwk, socialBody, socialToken } from '../../test/social.js';
 import { certs, keys, otherKeys, PROJECT, T0 } from '../../test/tokens.js';
 import { HttpError } from './http.js';
-import { createSessionAuth, SESSION_PATHS, SESSION_TTL } from './session.js';
+import {
+  createSessionAuth,
+  SESSION_PATHS,
+  SESSION_TTL,
+  type SessionAuthOptions,
+} from './session.js';
 import {
   parseAccountList,
+  parseRedirectUris,
+  socialLoginOptions,
   SOCIAL_PROVIDERS,
   socialKeys,
   type SocialLoginOptions,
@@ -98,6 +105,117 @@ describe('소셜 설정', () => {
       SOCIAL_PROVIDERS.naver.jwksUrl,
     ]);
     expect(SESSION_PATHS.social).toBe('/v1/session/social');
+  });
+});
+
+describe('redirect 주소 설정', () => {
+  it('콤마 문자열과 배열을 정리하고 중복 없이 원문을 유지한다', () => {
+    const expected = ['https://a.test', 'https://A.test/cb?x=1'];
+    expect(parseRedirectUris(' https://a.test, ,https://A.test/cb?x=1,https://a.test ')).toEqual(
+      expected,
+    );
+    expect(
+      parseRedirectUris([' https://a.test ', '', 'https://A.test/cb?x=1', 'https://a.test']),
+    ).toEqual(expected);
+    expect(parseRedirectUris(undefined)).toEqual([]);
+    expect(parseRedirectUris(' , ')).toEqual([]);
+  });
+  it.each([
+    'https://a.test/#',
+    'https://a.test/#x',
+    'https://user@a.test',
+    'https://:pass@a.test',
+    'https://user:pass@a.test',
+    'http://example.test',
+    'ftp://localhost/cb',
+    'not-url',
+    `https://a.test/${'x'.repeat(2034)}`,
+  ])('잘못된 주소 %s를 버린다', (uri) => {
+    expect(parseRedirectUris([uri])).toEqual([]);
+  });
+  it('https 2048자와 로컬 http 주소를 허용한다', () => {
+    const uris = [
+      `https://a.test/${'x'.repeat(2033)}`,
+      'http://localhost:5173/cb',
+      'http://127.0.0.1/cb',
+      'http://[::1]/cb',
+    ];
+    expect(parseRedirectUris(uris)).toEqual(uris);
+  });
+});
+
+describe('socialLoginOptions', () => {
+  it('social에 undefined를 명시해 넘길 수 있다', () => {
+    expectTypeOf<{ social: ReturnType<typeof socialLoginOptions> }>().toExtend<
+      Pick<SessionAuthOptions, 'social'>
+    >();
+  });
+  const base = {
+    allowedAccounts: undefined,
+    redirectUris: undefined,
+    keys: { kakao: certs, naver: certs },
+  };
+  it.each([
+    {},
+    { kakao: { clientId: '  ' } },
+    { kakao: { clientSecret: 'secret' } },
+    { naver: { clientId: 'id' } },
+    { naver: { clientSecret: 'secret' } },
+    { naver: { clientId: 'id', clientSecret: ' ' } },
+  ])('켜진 공급자가 없으면 undefined: %j', (input) => {
+    expect(socialLoginOptions({ ...base, ...input })).toBeUndefined();
+  });
+  it('카카오는 ID만으로 켜고 빈 시크릿과 fetch 키는 넣지 않는다', () => {
+    expect(
+      socialLoginOptions({
+        ...base,
+        kakao: { clientId: ' id ', clientSecret: ' ' },
+        fetch: undefined,
+      }),
+    ).toEqual({
+      allowedAccounts: undefined,
+      kakao: { clientId: 'id', redirectUris: [] },
+      keys: base.keys,
+    });
+  });
+  it('네이버는 ID와 시크릿으로 켜고 값과 두 공급자의 redirect 목록을 정리한다', () => {
+    const f = vi.fn<typeof fetch>();
+    expect(
+      socialLoginOptions({
+        ...base,
+        allowedAccounts: ' kakao:AbC,naver:AbC ',
+        kakao: { clientId: ' kakao ', clientSecret: ' secret-k ' },
+        naver: { clientId: ' naver ', clientSecret: ' secret-n ' },
+        redirectUris: ' https://a.test,not-url,https://a.test ',
+        fetch: f,
+      }),
+    ).toEqual({
+      allowedAccounts: 'kakao:AbC,naver:AbC',
+      kakao: { clientId: 'kakao', clientSecret: 'secret-k', redirectUris: ['https://a.test'] },
+      naver: { clientId: 'naver', clientSecret: 'secret-n', redirectUris: ['https://a.test'] },
+      keys: base.keys,
+      fetch: f,
+    });
+    expect(
+      socialLoginOptions({
+        ...base,
+        allowedAccounts: ' ',
+        naver: { clientId: 'id', clientSecret: 'secret' },
+      }),
+    ).toEqual({
+      allowedAccounts: undefined,
+      naver: { clientId: 'id', clientSecret: 'secret', redirectUris: [] },
+      keys: base.keys,
+    });
+  });
+});
+
+describe('본문 redirect 사용자 정보', () => {
+  it('사용자 정보가 있는 주소는 fetch 전에 400으로 거절한다', async () => {
+    const s = setup();
+    const redirectUri = 'https://user:pass@app.test/cb';
+    await fails(s.create({ ...socialBody, redirectUri }), 400, 'bad-request');
+    expect(s.f).not.toHaveBeenCalled();
   });
 });
 

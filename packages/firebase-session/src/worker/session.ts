@@ -47,7 +47,7 @@ export interface DeviceSessionRow {
 
 export interface SessionAuthOptions {
   db: D1Database;
-  social?: SocialLoginOptions;
+  social?: SocialLoginOptions | undefined;
   /**
    * 켜면 Google 세션도 ID 토큰 없이 세션만으로 인증한다(create가 identity에 소문자 이메일을 넣는다).
    * 허용 목록은 매 요청 다시 확인한다. 0002 마이그레이션이 필요하다.
