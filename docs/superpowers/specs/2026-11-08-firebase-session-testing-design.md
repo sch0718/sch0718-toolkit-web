@@ -134,7 +134,7 @@ export function createTestD1(o?: TestD1Options): TestD1;
 - 행을 돌려주는 문장인지는 `StatementSync.columns().length > 0`으로 가린다(`PRAGMA`도 맞게 처리). 그래서 `/testing/d1`은 **Node 22.16 이상**을 요구한다(README에 적는다. 정규식 대체 경로는 두지 않는다).
 - 변경 수: 행 문장은 `.all()` 전후 `total_changes()` 차이(repass 방식, `INSERT … RETURNING`이 1을 돌려준다), 그 밖은 `run().changes`.
 - 행은 null 프로토타입 객체를 평범한 객체로 펼친다(`toEqual` 비교용).
-- 선언 파일에 `/// <reference types="node" />`가 들어간다. 쓰는 서비스는 `@types/node`가 있어야 한다(가즈아·랜드마크·repass worker 모두 있음).
+- 선언 파일에 `/// <reference types="node" preserve="true" />`가 들어간다. 쓰는 서비스는 `@types/node`가 있어야 한다(가즈아·랜드마크·repass worker 모두 있음).
 
 ## 패키지 안 시험 도우미
 
