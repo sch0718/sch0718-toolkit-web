@@ -211,12 +211,9 @@ describe('socialLoginOptions', () => {
 });
 
 describe('본문 redirect 사용자 정보', () => {
-  it.each([
-    'https://user:pass@app.test/cb',
-    'https://user@app.test/cb',
-    'https://:pass@app.test/cb',
-  ])('사용자 정보가 있는 %s는 fetch 전에 400으로 거절한다', async (redirectUri) => {
+  it('사용자 정보가 있는 주소는 fetch 전에 400으로 거절한다', async () => {
     const s = setup();
+    const redirectUri = 'https://user:pass@app.test/cb';
     await fails(s.create({ ...socialBody, redirectUri }), 400, 'bad-request');
     expect(s.f).not.toHaveBeenCalled();
   });

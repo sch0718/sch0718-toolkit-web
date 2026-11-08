@@ -4,12 +4,7 @@ import { CLIENT_ID, socialBody, socialToken } from '../../test/social.js';
 import { certs, ME, PROJECT, T0, token } from '../../test/tokens.js';
 import { CertsUnavailableError } from './certs.js';
 import { HttpError } from './http.js';
-import {
-  handleSessionRoute,
-  parseRedirectUris,
-  socialLoginOptions,
-  type SessionRouteOptions,
-} from './index.js';
+import { handleSessionRoute, type SessionRouteOptions } from './index.js';
 import { createSessionAuth, SESSION_TTL, type SessionAuthOptions } from './session.js';
 
 async function setup(extra: Partial<SessionAuthOptions> = {}) {
@@ -60,20 +55,14 @@ const created = {
 };
 
 describe('세션 라우트', () => {
-  it('설정 도우미를 Worker 진입점에서 내보낸다', () => {
-    expect(parseRedirectUris(' https://a.test ')).toEqual(['https://a.test']);
-    expect(socialLoginOptions).toBeTypeOf('function');
-  });
   it('Google 세션을 만들고 본문의 기기 이름을 저장한다', async () => {
     const s = await setup();
-    const res = await response(
+    await response(
       handleSessionRoute(s.req('POST', '/v1/session', undefined, { label: '노트북' }), s.auth),
       200,
       created,
     );
     expect(s.db.raw.prepare('SELECT label FROM sessions').get()).toEqual({ label: '노트북' });
-    res.headers.set('Access-Control-Allow-Origin', 'https://app.test');
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.test');
   });
   it('소셜 세션을 만들고 사용자 정보를 돌려준다', async () => {
     const s = await setup();

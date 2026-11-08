@@ -20,6 +20,7 @@ Firebase Google 로그인과 카카오·네이버 OIDC 로그인 + 허용 목록
 import {
   createSessionAuth,
   googleCerts,
+  handleSessionRoute,
   matchOrigin,
   preflight,
   purgeSessions,
@@ -36,6 +37,9 @@ const sessions = createSessionAuth({
   random: (n) => crypto.getRandomValues(new Uint8Array(n)),
   uuid: () => crypto.randomUUID(),
 });
+
+const res = await handleSessionRoute(req, sessions);
+if (res) return res;
 ```
 
 CORS·출처 검사·preflight(OPTIONS)를 먼저 처리한 뒤, 서비스 라우터 앞에서 `await handleSessionRoute(req, sessions)`를 부릅니다. `POST /v1/session`·`POST /v1/session/social`(생성), `DELETE /v1/session`(현재 기기 철회), `GET /v1/sessions`(목록), `DELETE /v1/sessions?others=1`(다른 기기 철회), `DELETE /v1/sessions/:id`(한 기기 철회)를 처리하고, 다른 경로면 `null`을 돌려줍니다. 성공은 200이며 응답은 `json()`처럼 캐시하지 않습니다. CORS 헤더는 서비스가 응답에 더합니다.
