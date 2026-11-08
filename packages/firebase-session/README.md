@@ -276,10 +276,10 @@ export default defineConfig({ plugins: [svelte(), firebaseCsp(), firebaseAuthHel
 
 가짜 화면은 `${basePath}/authorize`와 `${basePath}/approve`의 GET 요청입니다. `handle(req, redirectUris)`는 localhost·127.0.0.1·[::1] 요청만 받고 다른 호스트나 경로는 null을 돌려줍니다. 허용 콜백은 `redirectUris`와 정확히 같아야 합니다. 화면에서 계정 ID와 정상·취소·공급자 오류·코드 거절·공급자 장애 중 하나를 고릅니다. 화면 없이 시험할 때는 같은 검사를 하는 `approve(query, redirectUris)`로 콜백 주소를 얻습니다. 잘못된 질의는 null입니다. `fetch`는 카카오·네이버 토큰 주소만 처리하고 다른 주소는 던집니다.
 
-**`handle`의 로컬 검사는 화면만 지킵니다. 가짜 `keys`·`fetch`·client ID를 `createSessionAuth`에 연결하는 조건은 서비스가 정하고, `isLocalRequest(req)`만으로 끝내지 마세요.** `isLocalRequest`는 요청 주소의 호스트 이름만 보므로 service binding처럼 Worker 안에서 `http://localhost/...`로 부르는 요청도 참이 됩니다. 개발 전용 env 플래그(예: 랜드마크 `SYNC_DEV_FAKE_SOCIAL=1`)나 허용 origin이 모두 로컬인지(repass `isLocalDev`)를 함께 확인합니다. 개발 전용 Worker 진입점(예: `dev.ts`)에서 다음처럼 연결합니다. 아래 `env.DEV_FAKE_SOCIAL`·`sessionOptions`·`handleSessionRequest`는 서비스가 정하는 개발 플래그, 기존 인증 옵션과 라우터입니다. 운영 진입점에는 시험 도우미를 import하지 않습니다.
+**`handle`의 로컬 검사는 화면만 지킵니다. 가짜 `keys`·`fetch`·client ID를 `createSessionAuth`에 연결하는 조건은 서비스가 정하고, `isLocalRequest(req)`만으로 끝내지 마세요.** `isLocalRequest`는 요청 주소의 호스트 이름만 보므로 service binding처럼 Worker 안에서 `http://localhost/...`로 부르는 요청도 참이 됩니다. 개발 전용 env 플래그(예: 랜드마크 `SYNC_DEV_FAKE_SOCIAL=1`)나 허용 origin이 모두 로컬인지(repass `isLocalDev`)를 함께 확인합니다. 개발 전용 Worker 진입점(예: `dev.ts`)에서 다음처럼 연결합니다. 아래 `env.DEV_FAKE_SOCIAL`·`sessionOptions`는 서비스가 정하는 개발 플래그와 기존 인증 옵션입니다. 운영 진입점에는 시험 도우미를 import하지 않습니다.
 
 ```ts
-import { createSessionAuth } from '@sch0718/firebase-session/worker';
+import { createSessionAuth, handleSessionRoute } from '@sch0718/firebase-session/worker';
 import {
   createFakeSocial,
   FAKE_CLIENT_IDS,
@@ -303,7 +303,8 @@ if (env.DEV_FAKE_SOCIAL === '1' && isLocalRequest(req)) {
       fetch: fake.fetch,
     },
   });
-  return handleSessionRequest(req, sessions);
+  const res = await handleSessionRoute(req, sessions);
+  if (res) return res;
 }
 return new Response('Not Found', { status: 404 });
 ```
