@@ -1,5 +1,15 @@
 # @sch0718/firebase-session
 
+## 0.5.0
+
+### Minor Changes
+
+- [#28](https://github.com/sch0718/sch0718-toolkit-web/pull/28) [`6e90ee5`](https://github.com/sch0718/sch0718-toolkit-web/commit/6e90ee59c80665316d1b11618469e7dd751dd228) Thanks [@sch0718](https://github.com/sch0718)! - Worker 진입점에 세션 API 6개를 처리하는 `handleSessionRoute`와 `SessionRouteOptions`, 소셜 설정을 조립하는 `socialLoginOptions`, redirect 허용 목록을 정리하는 `parseRedirectUris`를 추가합니다. `SessionAuthOptions.social`에 `undefined`를 명시해 넘길 수 있습니다.
+  
+  로그인 본문의 `redirectUri`에 사용자 이름이나 비밀번호가 있으면 400 `bad-request`로 거절합니다.
+
+- [#31](https://github.com/sch0718/sch0718-toolkit-web/pull/31) [`e2cbf9f`](https://github.com/sch0718/sch0718-toolkit-web/commit/e2cbf9f468b4f11a7c53b7e4b8e9f5471289f26a) Thanks [@sch0718](https://github.com/sch0718)! - 로컬 개발용 카카오·네이버 가짜 공급자와 인가 주소 변환, 시험용 ID 토큰 서명기를 `/testing`으로 내보냅니다. Node 22.16 이상에서 쓰는 SQLite 기반 시험용 D1은 `/testing/d1`으로 나누고, 서비스별 이행 방법과 로컬 요청 연결 조건을 안내합니다.
+
 ## 0.4.0
 
 ### Minor Changes
