@@ -267,3 +267,119 @@ export default defineConfig({ plugins: [svelte(), firebaseCsp(), firebaseAuthHel
 - PWA를 쓰면 `AUTH_GLOB_IGNORES`, `AUTH_NAVIGATE_DENYLIST`를 workbox 설정에 넣습니다.
 
 라이선스: [PolyForm Noncommercial 1.0.0](./LICENSE)
+
+## 개발·시험
+
+개발 서버와 시험에서는 아래 두 진입점을 씁니다. 기존 `/worker`·`/client`·`/vite`는 이 코드를 불러오지 않습니다. 시험 도우미는 크기 한도 대상에 넣지 않습니다. 서명에는 기존 의존성인 jose와 Web Crypto, D1에는 Node 내장 SQLite를 쓰므로 의존성을 더하지 않습니다.
+
+| 진입점                                 | 실행 환경                          | 내보내는 것                                                                                                                       |
+| -------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `@sch0718/firebase-session/testing`    | Worker(workerd)·Node·개발 브라우저 | `createFakeSocial`, `fakeAuthorizeUrl`, `isLocalRequest`, `FAKE_CLIENT_IDS`, `FAKE_CLIENT_SECRET`, `createTestTokens`와 관련 타입 |
+| `@sch0718/firebase-session/testing/d1` | Node 22.16 이상                    | `createTestD1`, `TestD1`, `TestD1Options`                                                                                         |
+
+### 가짜 소셜 공급자
+
+`createFakeSocial({ basePath, now?, defaultSub?, approveResponse? })`는 `keys`·`fetch`·`handle`·`approve`를 돌려줍니다. `defaultSub`는 기본 `dev-user`, `approveResponse`는 기본 `redirect`(302)입니다. `refresh`로 주면 콜백 주소를 담은 200 HTML meta refresh를 돌려줘 `route.fulfill`처럼 302를 따라가지 않는 환경에서도 쓸 수 있습니다. `now`는 밀리초 시계이며 기본은 `Date.now`입니다.
+
+가짜 화면은 `${basePath}/authorize`와 `${basePath}/approve`의 GET 요청입니다. `handle(req, redirectUris)`는 localhost·127.0.0.1·[::1] 요청만 받고 다른 호스트나 경로는 null을 돌려줍니다. 허용 콜백은 `redirectUris`와 정확히 같아야 합니다. 화면에서 계정 ID와 정상·취소·공급자 오류·코드 거절·공급자 장애 중 하나를 고릅니다. 화면 없이 시험할 때는 같은 검사를 하는 `approve(query, redirectUris)`로 콜백 주소를 얻습니다. 잘못된 질의는 null입니다. `fetch`는 카카오·네이버 토큰 주소만 처리하고 다른 주소는 던집니다.
+
+**`handle`의 로컬 검사는 화면만 지킵니다. 가짜 `keys`·`fetch`·client ID를 `createSessionAuth`에 연결하는 조건은 서비스가 정하고, `isLocalRequest(req)`만으로 끝내지 마세요.** `isLocalRequest`는 요청 주소의 호스트 이름만 보므로 service binding처럼 Worker 안에서 `http://localhost/...`로 부르는 요청도 참이 됩니다. 개발 전용 env 플래그(예: 랜드마크 `SYNC_DEV_FAKE_SOCIAL=1`)나 허용 origin이 모두 로컬인지(repass `isLocalDev`)를 함께 확인합니다. 개발 전용 Worker 진입점(예: `dev.ts`)에서 다음처럼 연결합니다. 아래 `env.DEV_FAKE_SOCIAL`·`sessionOptions`·`handleSessionRequest`는 서비스가 정하는 개발 플래그, 기존 인증 옵션과 라우터입니다. 운영 진입점에는 시험 도우미를 import하지 않습니다.
+
+```ts
+import { createSessionAuth } from '@sch0718/firebase-session/worker';
+import {
+  createFakeSocial,
+  FAKE_CLIENT_IDS,
+  FAKE_CLIENT_SECRET,
+  isLocalRequest,
+} from '@sch0718/firebase-session/testing';
+
+// dev.ts: 개발 서버만 쓰는 진입점. 조건에 맞지 않으면 가짜를 연결하지 않는다.
+if (env.DEV_FAKE_SOCIAL === '1' && isLocalRequest(req)) {
+  const fake = createFakeSocial({ basePath: '/dev/fake-social' });
+  const redirectUris = ['http://localhost:5173/auth/callback'];
+  const screen = await fake.handle(req, redirectUris);
+  if (screen) return screen;
+  const sessions = createSessionAuth({
+    ...sessionOptions,
+    social: {
+      allowedAccounts: 'kakao:dev-user,naver:dev-user',
+      kakao: { clientId: FAKE_CLIENT_IDS.kakao, clientSecret: FAKE_CLIENT_SECRET, redirectUris },
+      naver: { clientId: FAKE_CLIENT_IDS.naver, clientSecret: FAKE_CLIENT_SECRET, redirectUris },
+      keys: fake.keys,
+      fetch: fake.fetch,
+    },
+  });
+  return handleSessionRequest(req, sessions);
+}
+return new Response('Not Found', { status: 404 });
+```
+
+client ID는 `dev-fake-kakao`·`dev-fake-naver`, 시크릿은 `dev-fake-secret` 고정 시험값입니다. 실제 키를 넣지 않습니다. 계정 ID에 `dev-`가 없으면 approve에서 붙이고 토큰 교환 때 다시 확인합니다. 실제 계정만 있는 허용 목록은 추가 방어선이지만, 서비스가 빈 목록을 모두 허용하도록 구현한 경우에는 이 방어선이 없습니다. 로컬 연결 조건을 항상 유지해야 합니다.
+
+브라우저에서는 **`import.meta.env.DEV` 안의 동적 import**로만 씁니다. `/testing`은 공급자 설정을 통해 jose도 불러오므로 운영 브라우저 코드에서 정적 import하지 않습니다. `fakeAuthorizeUrl(realUrl, fakeBase)`는 실제 공급자의 origin과 경로가 정확히 맞아야 하며, 질의를 보존하고 `provider`를 더합니다. `fakeBase`는 절대 URL(예: `http://localhost:8787/dev/fake-social`)이어야 하고 끝의 슬래시는 무시합니다.
+
+```ts
+import { beginSocialSignIn } from '@sch0718/firebase-session/client';
+
+let clientId = socialConfig.kakao.clientId;
+let navigate = (url: string) => location.assign(url);
+if (import.meta.env.DEV) {
+  const { fakeAuthorizeUrl, FAKE_CLIENT_IDS } = await import('@sch0718/firebase-session/testing');
+  clientId = FAKE_CLIENT_IDS.kakao;
+  navigate = (url) => location.assign(fakeAuthorizeUrl(url, apiUrl + '/dev/fake-social'));
+}
+await beginSocialSignIn('kakao', {
+  clientId,
+  redirectUri: `${location.origin}/auth/callback`,
+  navigate,
+});
+```
+
+코드는 `fake.<base64url(JSON)>` 형식으로 상태를 담아 요청마다 가짜 공급자를 새로 만들어도 교환할 수 있습니다. 한 번 사용 제한은 두지 않습니다. 5분 만료, PKCE S256, client ID·시크릿·콜백을 검사합니다. 결과 `bad-code`는 토큰 주소의 400 `invalid_grant`를 거쳐 Worker의 401 `invalid-code`, `down`은 503 `provider-unavailable`로 이어집니다.
+
+### 시험용 ID 토큰
+
+`createTestTokens({ projectId, now? })`는 매번 새 RS256 키 쌍을 만들고 `{ keys, certs, token }`을 돌려줍니다. `certs`는 kid `k1`만 받습니다. 기본 토큰은 Firebase 형식이며 sub `uid-me`, 이메일 `me@example.test`, 검증된 이메일, 현재 `auth_time`·`iat`, 1시간 뒤 `exp`를 넣습니다. 호출마다 클레임을 덮어쓸 수 있고 `undefined`인 클레임은 뺍니다. `token`의 두 번째 인자는 `{ now?, kid?, key?, alg? }`로 검증 실패를 시험할 때도 씁니다.
+
+```ts
+import { createTestTokens } from '@sch0718/firebase-session/testing';
+
+const tokens = await createTestTokens({ projectId: 'service-test', now: () => 1_800_000_000_000 });
+const idToken = await tokens.token({ email: 'a@example.test' });
+// 카카오·네이버 토큰은 iss·aud·nonce 등 필요한 클레임을 덮어쓴다.
+const withoutEmail = await tokens.token({ email: undefined });
+```
+
+### 시험용 D1
+
+`/testing/d1`은 **Node 22.16 이상**과 소비자 쪽 `@types/node`가 필요합니다. workerd·브라우저에서는 불러오지 않습니다. 선언 파일의 보존된 node 참조로 Node 타입을 불러오므로 `compilerOptions.types`에 node를 추가할 필요는 없습니다.
+
+```ts
+import { createTestD1 } from '@sch0718/firebase-session/testing/d1';
+
+const db = createTestD1({
+  migrations: new URL('../migrations/', import.meta.url),
+  through: '0001_users_sessions.sql',
+});
+try {
+  db.interleave = true; // first·all·run 전에 매크로태스크로 양보
+  db.failNextBatchAt(1); // 다음 batch의 두 번째 문장에서 한 번 실패
+  // db를 createSessionAuth나 서비스 DB 계층에 전달
+} finally {
+  db.close();
+}
+```
+
+`migrations`는 폴더 경로나 file: URL이고 `.sql`을 파일 이름순으로 적용합니다. `through`는 해당 파일 이름까지 포함하며, `migrations`를 생략하면 빈 DB입니다. `raw`로 Node의 `DatabaseSync`에 직접 접근할 수 있습니다. 외래 키 검사를 켜고 batch는 한 트랜잭션으로 실행하며 실패하면 모두 롤백합니다. 다른 DB의 문장은 거절합니다. `null`·문자열·숫자·`Uint8Array`·`ArrayBuffer`만 바인딩하고 `undefined`·boolean 등은 TypeError입니다(실제 D1은 boolean을 1/0으로 넣지만, 기존 사본처럼 막아 실수를 드러냅니다). `?1` 번호 매개변수는 SQLite에 그대로 넘깁니다. 결과는 열거 가능한 `{ results, success, meta: { changes } }`이고 각 행은 평범한 객체입니다. `INSERT … RETURNING`도 변경 수를 셉니다.
+
+### 서비스 이행 안내
+
+서비스 코드는 별도 작업으로 바꿉니다. 마이그레이션 SQL 복사는 기존 안내대로 유지합니다.
+
+| 서비스   | 지울 파일·도우미                                                                        | 바꿀 것                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| repass   | `worker/src/devFakeSocial.ts`, `app/src/lib/sync/devFakeSocial.ts`, `worker/test/d1.ts` | `dev.ts`에서 `createFakeSocial({ basePath: '/dev/fake-social' })`와 `handle(req, socialRedirectUris(env))`. 앱은 `fakeAuthorizeUrl(url, apiUrl + '/dev/fake-social')`. 시험은 `/testing/d1`·`createTestTokens`로 전환하고 기본 이메일은 클레임으로 덮어씁니다. `isLocalDev`(허용 origin이 모두 로컬인지)는 지우지 말고 `dev.ts`의 연결 조건으로 유지합니다. 기존 `createTestD1({ through })`는 마이그레이션을 늘 적용했으므로 `migrations` 폴더를 함께 넘깁니다.                                       |
+| 랜드마크 | `src/server/library-sync/dev-fake-social.ts`, `tests/helpers/sqlite-d1.ts`              | `createFakeSocial({ basePath: '/api/sync/dev/fake-social', defaultSub: 'dev-me', approveResponse: 'refresh' })`. `login.ts`의 정적 `fakeAuthorizeUrl`을 개발 분기 동적 import로 바꿉니다. D1 전체를 `{ results }`와 비교하던 시험(`meet-db.test.ts` 등)은 `.results`를 비교합니다. 기존 도우미와 달리 외래 키 검사를 켜므로 FK를 어기던 시험은 고쳐야 합니다. `fakeAuthorizeUrl`의 둘째 인자는 origin이 아니라 가짜 화면의 절대 URL입니다. 가짜 연결 조건인 `devFakeEnabled`의 로컬 검사를 유지합니다. |
+| 가즈아   | `src/lib/sync/socialDev.ts`, `sync-worker/test/d1.ts`                                   | `devSocialEntry.ts`에서 `createFakeSocial({ basePath: '/__dev/social' })`, 경로는 `/__dev/social/authorize?provider=`로 바꿉니다. 개발 env의 client ID·시크릿은 `dev-fake-*`로 맞춥니다. **`sync-worker/test/fakeSocial.ts`는 남깁니다.** 코드 1회 사용·동시 교환·`calls`·키 장애·`no-id-token`은 서비스 시험만 쓰는 상태 있는 대역입니다.                                                                                                                                                             |
+| synctx   | `deploy/pages/test/helpers.ts`의 `fakeGoogle`                                           | `createTestTokens({ projectId: 'synctx-test' })`로 바꿉니다. workerd에서는 `/testing`만 쓰고 `/testing/d1`은 불러오지 않습니다.                                                                                                                                                                                                                                                                                                                                                                        |

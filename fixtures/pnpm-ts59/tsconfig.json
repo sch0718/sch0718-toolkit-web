@@ -8,7 +8,8 @@
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "skipLibCheck": false
+    "skipLibCheck": false,
+    "types": []
   },
   "include": ["index.ts"]
 }

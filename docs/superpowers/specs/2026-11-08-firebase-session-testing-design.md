@@ -129,7 +129,7 @@ export function createTestD1(o?: TestD1Options): TestD1;
 세 사본의 기능을 합친다.
 
 - `PRAGMA foreign_keys = ON`. batch는 `BEGIN`/`COMMIT`, 실패하면 `ROLLBACK`. 다른 DB의 문장은 TypeError(repass·랜드마크).
-- 바인딩: `null`·`string`·`number`·`Uint8Array`, `ArrayBuffer`는 `Uint8Array`로. `undefined`·`boolean`·그 밖은 TypeError(실제 D1과 같이 실수를 드러낸다).
+- 바인딩: `null`·`string`·`number`·`Uint8Array`, `ArrayBuffer`는 `Uint8Array`로. `undefined`·`boolean`·그 밖은 TypeError(실제 D1은 boolean을 1/0으로 넣지만, 사본들처럼 막아 실수를 드러낸다).
 - `?1` 번호 매개변수는 `node:sqlite`가 그대로 지원한다(2026-11-08 Node 24에서 확인). 랜드마크의 바꿔 쓰기는 옮기지 않는다.
 - 행을 돌려주는 문장인지는 `StatementSync.columns().length > 0`으로 가린다(`PRAGMA`도 맞게 처리). 그래서 `/testing/d1`은 **Node 22.16 이상**을 요구한다(README에 적는다. 정규식 대체 경로는 두지 않는다).
 - 변경 수: 행 문장은 `.all()` 전후 `total_changes()` 차이(repass 방식, `INSERT … RETURNING`이 1을 돌려준다), 그 밖은 `run().changes`.

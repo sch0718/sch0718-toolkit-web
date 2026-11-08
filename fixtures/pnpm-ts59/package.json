@@ -5,7 +5,7 @@
   "description": "가즈아 조건: pnpm 10, TypeScript 5.9, Svelte 5, Vite 6, Firebase 12",
   "packageManager": "pnpm@10.34.7",
   "scripts": {
-    "check": "tsc -p . && tsc -p tsconfig.pwa.json && svelte-check --tsconfig ./tsconfig.svelte.json"
+    "check": "tsc -p . && tsc -p tsconfig.node.json && tsc -p tsconfig.pwa.json && svelte-check --tsconfig ./tsconfig.svelte.json"
   },
   "devDependencies": {
     "typescript": "5.9.3",
@@ -15,6 +15,7 @@
     "vite-plugin-pwa": "2.0.0",
     "workbox-build": "7.4.1",
     "workbox-window": "7.4.1",
-    "firebase": "12.19.0"
+    "firebase": "12.19.0",
+    "@types/node": "26.6.5"
   }
 }

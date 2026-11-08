@@ -26,7 +26,15 @@
     },
     "./migrations/0001_users_sessions.sql": "./migrations/0001_users_sessions.sql",
     "./package.json": "./package.json",
-    "./migrations/firebase-session-0002_social_sessions.sql": "./migrations/firebase-session-0002_social_sessions.sql"
+    "./migrations/firebase-session-0002_social_sessions.sql": "./migrations/firebase-session-0002_social_sessions.sql",
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    },
+    "./testing/d1": {
+      "types": "./dist/testing/d1.d.ts",
+      "default": "./dist/testing/d1.js"
+    }
   },
   "files": [
     "dist",
