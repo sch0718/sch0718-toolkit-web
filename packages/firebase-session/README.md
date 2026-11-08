@@ -38,7 +38,11 @@ const sessions = createSessionAuth({
 });
 ```
 
-엔드포인트(`SESSION_PATHS`)는 서비스 라우터가 연결합니다: `POST /v1/session`(create), `DELETE /v1/session`(revoke current), `GET /v1/sessions`(list), `DELETE /v1/sessions?others=1`, `DELETE /v1/sessions/:id`. 실패는 `HttpError`(401·403·404)로, 인증서를 받지 못하면 `CertsUnavailableError`로 던집니다(503으로 바꾸세요).
+CORS·출처 검사·preflight(OPTIONS)를 먼저 처리한 뒤, 서비스 라우터 앞에서 `await handleSessionRoute(req, sessions)`를 부릅니다. `POST /v1/session`·`POST /v1/session/social`(생성), `DELETE /v1/session`(현재 기기 철회), `GET /v1/sessions`(목록), `DELETE /v1/sessions?others=1`(다른 기기 철회), `DELETE /v1/sessions/:id`(한 기기 철회)를 처리하고, 다른 경로면 `null`을 돌려줍니다. 성공은 200이며 응답은 `json()`처럼 캐시하지 않습니다. CORS 헤더는 서비스가 응답에 더합니다.
+
+경로는 끝 슬래시 없이 정확히 맞추며, 세션 경로의 다른 메서드는 405 `method`입니다. 다른 기기 철회의 쿼리가 정확히 `others=1` 하나가 아니면 400 `bad-request`, 세션 ID 디코딩 실패는 404 `not-found`입니다. `HttpError`는 해당 상태·본문으로, `CertsUnavailableError`는 503 `certs-unavailable`로, 나머지는 500 `internal`로 바꿉니다. 설정 안내 오류는 문구를, 그 밖의 오류는 이름만 `log`(기본 `console.error`)에 남깁니다.
+
+접두어를 뗀 경로는 `path` 옵션으로 넘깁니다. `onRoute(pattern)`은 405를 포함한 세션 경로에서 한 번 불립니다. `beforeCreate()`는 두 생성 경로의 본문을 읽기 전에, `onRevoke(ctx, target, revoked)`는 철회 성공 뒤에 불립니다. 콜백에서 상태 응답을 내려면 `HttpError`를 던집니다. 기능 꺼짐 검사는 처리기를 부르기 전에 하고, 생성 뒤 정리는 `onRoute`로 받은 패턴과 응답 상태 200을 확인해 서비스가 실행합니다.
 
 **서비스가 허용 여부를 판단하기.** 고정 목록 밖의 사용자(예: 초대받은 멤버)를 들이려면 `isAllowed`를 줍니다. 목록에 있으면 부르지 않습니다.
 
@@ -102,12 +106,8 @@ import {
   createSessionAuth,
   googleCerts,
   socialKeys,
-  SESSION_PATHS,
-  HttpError,
-  CertsUnavailableError,
-  errorBody,
-  json,
-  readJson,
+  socialLoginOptions,
+  handleSessionRoute,
 } from '@sch0718/firebase-session/worker';
 
 const certs = googleCerts();
@@ -123,38 +123,27 @@ const sessions = createSessionAuth({
   now: Date.now,
   random: (n) => crypto.getRandomValues(new Uint8Array(n)),
   uuid: () => crypto.randomUUID(),
-  social: {
+  social: socialLoginOptions({
     allowedAccounts: env.ALLOWED_ACCOUNTS, // 비면 아무도 로그인하지 못함
-    kakao: {
-      clientId: env.KAKAO_CLIENT_ID,
-      clientSecret: env.KAKAO_CLIENT_SECRET,
-      redirectUris: ['https://app.example.test/auth/callback'],
-    },
-    naver: {
-      clientId: env.NAVER_CLIENT_ID,
-      clientSecret: env.NAVER_CLIENT_SECRET,
-      redirectUris: ['https://app.example.test/auth/callback'],
-    },
+    kakao: { clientId: env.KAKAO_CLIENT_ID, clientSecret: env.KAKAO_CLIENT_SECRET },
+    naver: { clientId: env.NAVER_CLIENT_ID, clientSecret: env.NAVER_CLIENT_SECRET },
+    // 기본값 정책은 서비스가 정합니다.
+    redirectUris: env.SOCIAL_REDIRECT_URIS?.trim() || `${new URL(req.url).origin}/auth/callback`,
     keys,
-  },
+  }),
 });
 
-try {
-  if (req.method === 'POST' && new URL(req.url).pathname === SESSION_PATHS.social) {
-    return json(200, await sessions.createSocial(req, await readJson(req)));
-  }
-  const ctx = await sessions.authenticate(req); // 소셜 세션은 Authorization 없이
-  // ctx로 서비스 API, sessions.list(ctx), sessions.revoke(ctx, ...) 호출
-} catch (e) {
-  if (e instanceof HttpError) return json(e.status, errorBody(e.code, e.extra));
-  if (e instanceof CertsUnavailableError) return json(503, errorBody('certs-unavailable'));
-  throw e;
-}
+// CORS·출처 검사·preflight와 기능 꺼짐 검사를 먼저 처리합니다.
+const response = await handleSessionRoute(req, sessions);
+if (response) return response; // 서비스가 CORS 헤더를 더해 반환
+
+const ctx = await sessions.authenticate(req); // 소셜 세션은 Authorization 없이
+// ctx로 서비스 API 처리. 서비스 API의 오류 변환은 서비스가 담당
 ```
 
-쓰는 공급자만 `social.kakao`·`social.naver`에 넣습니다. `social`이 없으면 `createSocial`은 404 `not-found`입니다. 토큰 엔드포인트의 거절(429 제외)은 401 `invalid-code`, ID 토큰 검증 실패는 401 `invalid-token`, 토큰 엔드포인트 429, 공급자·JWKS 장애나 코드 교환 시간 초과(10초)는 503 `provider-unavailable`입니다. 200 응답에 `id_token`이 없으면 OIDC 활성화 여부를 확인하세요. 클라이언트는 503을 `{ kind: 'limit', code: 'provider-unavailable' }`로 돌려줍니다.
+`socialLoginOptions()`는 값의 앞뒤 공백을 지우고 빈 값은 없는 것으로 봅니다. 카카오는 Client ID가 있으면 켜고 시크릿은 있을 때만 넣으며, 네이버는 ID와 시크릿이 모두 있어야 켭니다. 둘 다 꺼지면 `undefined`를 돌려줍니다. `social`이 없으면 `createSocial`은 404 `not-found`입니다. 처리기는 이때도 `beforeCreate` → 본문 읽기 → `createSocial` 순서로 실행합니다. 토큰 엔드포인트의 거절(429 제외)은 401 `invalid-code`, ID 토큰 검증 실패는 401 `invalid-token`, 토큰 엔드포인트 429, 공급자·JWKS 장애나 코드 교환 시간 초과(10초)는 503 `provider-unavailable`입니다. 200 응답에 `id_token`이 없으면 OIDC 활성화 여부를 확인하세요. 클라이언트는 503을 `{ kind: 'limit', code: 'provider-unavailable' }`로 돌려줍니다.
 
-`redirectUris`를 주면 본문 `redirectUri`가 목록의 문자열 중 하나와 정확히 같아야 합니다(쿼리·끝 슬래시·대소문자 포함). 빈 배열이면 모두 거절하고, 생략하면 기존 URL 형식만 검사합니다. 운영 앱에는 localhost 콜백을 함께 등록하지 말고 개발용 공급자 앱(별도 Client ID)을 따로 쓰는 것을 권장합니다.
+`socialLoginOptions()`는 `parseRedirectUris(raw: string | readonly string[] | undefined)`로 거른 목록을 두 공급자에 똑같이 넣습니다. 문자열은 콤마로 나누고 배열도 항목마다 공백을 지운 뒤 빈 값·잘못된 주소·중복을 뺍니다. URL로 정규화하지 않으므로 본문 `redirectUri`는 목록의 원문과 정확히 같아야 합니다(쿼리·끝 슬래시·대소문자 포함). 결과가 빈 배열이면 모두 거절합니다. 직접 `social`을 조립해 `redirectUris`를 생략하면 URL 형식만 검사합니다. 설정 목록과 본문은 모두 2048자 이하, `#`와 사용자 정보가 없는 HTTPS 주소 또는 localhost·127.0.0.1·[::1]의 HTTP 주소만 허용합니다. 본문 주소에 사용자 정보가 있으면 400 `bad-request`입니다. 운영 앱에는 localhost 콜백을 함께 등록하지 말고 개발용 공급자 앱(별도 Client ID)을 따로 쓰는 것을 권장합니다.
 
 JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초 동안 다시 조회하지 않고 바로 `CertsUnavailableError`를 던집니다(negative cache). 30초가 지나면 재시도하며, 성공한 뒤에는 다음 실패까지 negative cache의 영향이 없습니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
 

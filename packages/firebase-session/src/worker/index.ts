@@ -36,10 +36,13 @@ export {
   type VerifiedUser,
 } from './verify.js';
 export { jwksKeys } from './jwks.js';
+export { handleSessionRoute, type SessionRouteOptions } from './routes.js';
 export {
   parseAccountList,
+  parseRedirectUris,
   SOCIAL_PROVIDERS,
   socialKeys,
+  socialLoginOptions,
   type SocialProvider,
   type SocialProviderConfig,
   type SocialLoginOptions,
