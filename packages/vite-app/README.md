@@ -55,7 +55,7 @@ import { devCsp } from '@sch0718/vite-app';
 export default { plugins: [devCsp()] };
 ```
 
-`vite` 개발 서버(`serve`)에서만 `index.html`의 `connect-src`에 `http://localhost:*`, `http://127.0.0.1:*`, `http://[::1]:*`를 더합니다. Node 프록시나 `wrangler dev`에 붙기 위해서입니다. 빌드 결과의 CSP는 바뀌지 않습니다. 출처를 바꾸려면 `devCsp({ connectSources: ['http://localhost:8788'] })`로 줍니다.
+`vite` 개발 서버(`serve`)에서만 `index.html`의 `connect-src`에 `http://localhost:*`, `http://127.0.0.1:*`를 더합니다. Node 프록시나 `wrangler dev`에 붙기 위해서입니다. `http://[::1]:*` 같은 IPv6 리터럴은 CSP 출처 문법에 없어 브라우저가 무시하고 경고만 내므로 넣지 않습니다. 빌드 결과의 CSP는 바뀌지 않습니다. 출처를 바꾸려면 `devCsp({ connectSources: ['http://localhost:8788'] })`로 줍니다.
 
 `index.html`의 CSP에 `connect-src 'self' https:`가 그대로 들어 있어야 합니다. 없으면 조용히 넘어가지 않고 오류로 멈춥니다.
 

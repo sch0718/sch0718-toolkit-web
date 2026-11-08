@@ -41,6 +41,55 @@ export interface SocialLoginOptions {
   keys: Record<SocialProvider, CertSource>;
   fetch?: typeof fetch;
 }
+
+function isRedirectUri(s: string): boolean {
+  if (s.length > 2048 || s.includes('#')) return false;
+  try {
+    const url = new URL(s);
+    return (
+      !url.username &&
+      !url.password &&
+      (url.protocol === 'https:' ||
+        (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** 공백·중복·잘못된 주소를 빼고, 본문과 정확히 비교할 원문은 유지한다. */
+export function parseRedirectUris(raw: string | readonly string[] | undefined): string[] {
+  const values = typeof raw === 'string' ? raw.split(',') : (raw ?? []);
+  return [...new Set(values.map((s) => s.trim()).filter(isRedirectUri))];
+}
+
+/** 환경변수에서 켜진 공급자만 소셜 설정에 넣는다. */
+export function socialLoginOptions(i: {
+  allowedAccounts: string | undefined;
+  kakao?: { clientId?: string | undefined; clientSecret?: string | undefined };
+  naver?: { clientId?: string | undefined; clientSecret?: string | undefined };
+  /** 콤마 문자열이나 목록. 요청 origin 같은 기본값은 서비스가 정해 넘긴다. */
+  redirectUris: string | readonly string[] | undefined;
+  keys: Record<SocialProvider, CertSource>;
+  fetch?: typeof fetch | undefined;
+}): SocialLoginOptions | undefined {
+  const kakaoId = i.kakao?.clientId?.trim();
+  const kakaoSecret = i.kakao?.clientSecret?.trim();
+  const naverId = i.naver?.clientId?.trim();
+  const naverSecret = i.naver?.clientSecret?.trim();
+  if (!kakaoId && !(naverId && naverSecret)) return undefined;
+  const redirectUris = parseRedirectUris(i.redirectUris);
+  return {
+    allowedAccounts: i.allowedAccounts?.trim() || undefined,
+    ...(kakaoId && {
+      kakao: { clientId: kakaoId, ...(kakaoSecret && { clientSecret: kakaoSecret }), redirectUris },
+    }),
+    ...(naverId &&
+      naverSecret && { naver: { clientId: naverId, clientSecret: naverSecret, redirectUris } }),
+    keys: i.keys,
+    ...(i.fetch && { fetch: i.fetch }),
+  };
+}
 export function socialKeys(
   fetchImpl: typeof fetch = fetch,
   now: () => number = Date.now,
@@ -79,18 +128,7 @@ function readBody(body: unknown, o: SocialLoginOptions): SocialBody {
   )
     throw bad();
   const redirect = b['redirectUri'];
-  if (typeof redirect !== 'string' || redirect.length > 2048 || redirect.includes('#')) throw bad();
-  let url: URL;
-  try {
-    url = new URL(redirect);
-  } catch {
-    throw bad();
-  }
-  if (
-    url.protocol !== 'https:' &&
-    !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
-  )
-    throw bad();
+  if (typeof redirect !== 'string' || !isRedirectUri(redirect)) throw bad();
   const allowed = o[provider]!.redirectUris;
   if (allowed !== undefined && !allowed.includes(redirect)) throw bad();
   return body as SocialBody;

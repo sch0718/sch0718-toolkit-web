@@ -9,8 +9,9 @@ describe('개발 서버 CSP', () => {
   it('빌드 CSP는 self와 https만', () => {
     expect(connectSrc(html)).toEqual(["'self'", 'https:']);
   });
-  it('개발 서버에서는 localhost·127.0.0.1·[::1] http를 더한다', () => {
+  it('개발 서버에서는 localhost·127.0.0.1 http를 더하고 IPv6 리터럴은 넣지 않는다', () => {
     expect(connectSrc(applyDevCsp(html))).toEqual(["'self'", 'https:', ...DEV_LOCAL_PROXY_SOURCES]);
+    expect(DEV_LOCAL_PROXY_SOURCES).toEqual(['http://localhost:*', 'http://127.0.0.1:*']);
   });
   it('출처를 바꿔 줄 수 있다', () => {
     expect(connectSrc(applyDevCsp(html, ['http://localhost:8788']))).toEqual([
