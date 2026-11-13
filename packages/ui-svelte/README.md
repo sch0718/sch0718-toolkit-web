@@ -59,7 +59,7 @@ applyTheme(readThemeChoice('myapp:theme'));
 | 강조·상태     | `--accent`, `--accent-soft`, `--on-accent`, `--snack-action`, `--ok`·`--warn`·`--err`와 각 `-soft`, `--scrim`, `--shadow` |
 | 글자 크기     | `--fs-headline`(28), `--fs-title`(17), `--fs-body`(15), `--fs-sub`(13), `--fs-label`(11), 글꼴 `--font`                   |
 | 간격·크기     | `--sp-1..8`(4px 단위), `--sp-10`(40), `--sp-12`(48), `--gutter`(16, 600px 이상 24), `--touch`(44), `--bar-h`(56)          |
-| 둥글기        | `--r-chip`(999), `--r-card`(16), `--r-sheet`(24)                                                                          |
+| 둥글기        | `--r-chip`(999), `--r-control`(12, 입력칸·아이콘 단추), `--r-card`(16), `--r-sheet`(24)                                   |
 | 포커스·움직임 | `--focus-ring`(기본 `2px solid var(--accent)`, 전역 `:focus-visible`이 씀), `--ease`, `--dur-fast/base/slow`              |
 
 대비는 시험(`test/tokens.test.ts`)이 지킵니다. 글자 토큰은 모든 면 위 4.5:1, `--accent`는 `--accent-soft`를 어느 면에 얹어도 4.5:1입니다. 상태 옅은 배경(`--ok-soft` 등)은 카드(`--surface`) 위에 두는 것을 전제로 4.5:1을 맞췄습니다. 라이트 `--bg` 위에 바로 두면 `--ok`가 4.32:1이라 AA에 모자랍니다.
@@ -164,6 +164,22 @@ showSnackbar('지웠어요', { label: '되돌리기', run: () => restore(row) })
 - `holdSnackbarWhileFocused(el)`: 포커스가 `el`에 머무는 동안 타이머를 멈춥니다.
 - `currentSnackbar()`, `runSnackbarAction()`: 직접 호스트를 그릴 때 씁니다.
 - 타입 `SnackbarAction`(`label`, `run`, `focus?`), `SnackbarItem`.
+
+## 아이콘
+
+이 패키지는 아이콘을 넣지 않습니다(런타임 의존성 0). 서비스는 [Lucide](https://github.com/lucide-icons/lucide)(GitHub 별 25.7k, 2026-11-13 확인)의 Svelte 패키지 `@lucide/svelte`를 아이콘마다 따로 불러와 씁니다. 랜드마크도 Lucide를 쓰므로 서비스 사이에 아이콘 모양이 맞습니다.
+
+- 아이콘마다 경로로 불러옵니다(`@lucide/svelte/icons/<이름>`). 묶음 진입점(`@lucide/svelte`)은 쓰지 않습니다.
+- 선 굵기는 Lucide 기본값 2, 크기는 20px(목록·단추 안) 또는 24px(탭·레일)입니다. 색은 `currentColor`로 글자색을 따릅니다.
+- 장식용이면 `aria-hidden="true"`를 주고 접근성 이름은 링크·단추가 맡습니다.
+
+```svelte
+<script lang="ts">
+  import Settings from '@lucide/svelte/icons/settings';
+</script>
+
+<button type="button" aria-label="설정"><Settings size={24} aria-hidden="true" /></button>
+```
 
 ## 폭 구간
 

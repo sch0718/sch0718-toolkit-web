@@ -39,6 +39,7 @@
   --fs-sub: 13px;
   --fs-label: 11px;
   --r-chip: 999px;
+  --r-control: 12px; /* 입력칸·아이콘 단추처럼 작은 조작 요소 */
   --r-card: 16px;
   --r-sheet: 24px;
   --gutter: 16px;

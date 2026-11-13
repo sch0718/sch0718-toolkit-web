@@ -24,11 +24,16 @@ describe('tokens.css', () => {
     expect(css).not.toContain('@import');
   });
 
-  it('간격은 4px 단위, 포커스 링은 --focus-ring 하나로 그린다', () => {
+  it('간격은 4px 단위, 둥글기는 조작 요소 < 카드 < 시트, 포커스 링은 --focus-ring 하나로 그린다', () => {
     expect(
       ['1', '2', '3', '4', '5', '6', '7', '8', '10', '12'].map((n) => light[`sp-${n}`]),
     ).toEqual(['4px', '8px', '12px', '16px', '20px', '24px', '28px', '32px', '40px', '48px']);
     expect(light['focus-ring']).toBe('2px solid var(--accent)');
+    expect([light['r-control'], light['r-card'], light['r-sheet']]).toEqual([
+      '12px',
+      '16px',
+      '24px',
+    ]);
     expect(css).toMatch(/\[tabindex\]:focus-visible \{\s*outline: var\(--focus-ring\);/);
   });
 
