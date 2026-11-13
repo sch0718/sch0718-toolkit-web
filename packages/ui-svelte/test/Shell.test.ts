@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import BottomNav from '../src/lib/BottomNav.svelte';
 import NavItem from '../src/lib/NavItem.svelte';
 import navItemSource from '../src/lib/NavItem.svelte?raw';
+import bottomNavSource from '../src/lib/BottomNav.svelte?raw';
 import TopBar from '../src/lib/TopBar.svelte';
 import topBarSource from '../src/lib/TopBar.svelte?raw';
 import type { IconNode } from '../src/lib/icon.js';
@@ -58,6 +59,12 @@ describe('BottomNav', () => {
     expect(nav.querySelectorAll('li')).toHaveLength(2);
     expect(screen.getByRole('link', { name: '홈' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: '성경' }).hasAttribute('aria-current')).toBe(false);
+  });
+
+  it('탭 줄은 --bar-h 높이에 좌우 --gutter 여백을 둔다', () => {
+    expect(flat(bottomNavSource)).toMatch(
+      /ul \{ display: flex; min-height: var\(--bar-h\); margin: 0; padding: 0 var\(--gutter\);/,
+    );
   });
 });
 

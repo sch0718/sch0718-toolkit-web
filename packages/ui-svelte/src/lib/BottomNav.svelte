@@ -30,7 +30,7 @@
     display: flex;
     min-height: var(--bar-h);
     margin: 0;
-    padding: 0 var(--sp-2);
+    padding: 0 var(--gutter);
     list-style: none;
   }
   li {
