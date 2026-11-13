@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Badge from '../src/lib/Badge.svelte';
 import Banner from '../src/lib/Banner.svelte';
 import Chip from '../src/lib/Chip.svelte';
+import ThemePicker from '../src/lib/ThemePicker.svelte';
 import Toggle from '../src/lib/Toggle.svelte';
 import toggleSource from '../src/lib/Toggle.svelte?raw';
 
@@ -96,5 +97,22 @@ describe('Toggle', () => {
     expect(v.track.classList.contains('on')).toBe(true);
     expect(v.bg(v.track)).toBe('var(--accent)');
     expect(v.bg(v.thumb)).toBe('var(--on-accent)');
+  });
+});
+
+describe('ThemePicker', () => {
+  it('라이트·다크·시스템 중 하나를 고르고 ThemeChoice로 알린다', async () => {
+    const onchange = vi.fn();
+    render(ThemePicker, { value: 'system', onchange });
+    const group = screen.getByRole('radiogroup', { name: '테마' });
+    expect(group).toBeTruthy();
+    expect(screen.getByRole('radio', { name: '시스템' }).getAttribute('aria-checked')).toBe('true');
+    await fireEvent.click(screen.getByRole('radio', { name: '다크' }));
+    expect(onchange).toHaveBeenCalledWith('dark');
+  });
+
+  it('접근성 이름을 바꿀 수 있다', () => {
+    render(ThemePicker, { value: 'light', onchange: vi.fn(), label: '화면 테마' });
+    expect(screen.getByRole('radiogroup', { name: '화면 테마' })).toBeTruthy();
   });
 });

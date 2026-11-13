@@ -1,0 +1,38 @@
+{
+  "name": "@sch0718/token-check",
+  "version": "0.0.0",
+  "description": "디자인 토큰 시험 도구. tokens.css의 세 블록(라이트 / 다크 자동 / 다크 지정)을 읽고 WCAG 대비를 계산한다. Node 시험 전용.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "신춘호 (https://github.com/sch0718)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sch0718/sch0718-toolkit-web.git",
+    "directory": "packages/token-check"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp ../../LICENSE LICENSE",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "chroma-js": "3.2.0"
+  },
+  "devDependencies": {
+    "@types/chroma-js": "3.1.2"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

@@ -15,10 +15,11 @@
 | [`@sch0718/seen-store`](packages/seen-store)             | 이미 본 항목(처음 안내 등)의 기록. 저장소가 막히면 메모리로 동작                                                                                                                                                                 | 첫 발행 준비 |
 | [`@sch0718/firebase-session`](packages/firebase-session) | Google·카카오·네이버 로그인·허용 목록·D1 기기 세션(`/worker`), 로그인·세션 API 클라이언트(`/client`), 로그인 도우미·CSP Vite 플러그인(`/vite`), 개발·시험 도우미(`/testing`·`/testing/d1`). users·sessions 마이그레이션 SQL 포함 | 첫 발행 준비 |
 | [`@sch0718/vite-app`](packages/vite-app)                 | PWA 설정 팩토리 `createPwaOptions()`, 개발 서버 CSP 완화 플러그인 `devCsp()`                                                                                                                                                     | 첫 발행 준비 |
-| [`@sch0718/ui-svelte`](packages/ui-svelte)               | 범용 디자인 토큰(`tokens.css`)과 Svelte 5 컴포넌트(Badge, Banner, Chip, Segmented, Sheet, Snackbar, SnackbarHost, Toggle), `applyTheme`                                                                                          | 첫 발행 준비 |
+| [`@sch0718/ui-svelte`](packages/ui-svelte)               | 범용 디자인 토큰(`tokens.css`)과 Svelte 5 컴포넌트(Badge, Banner, Chip, Segmented, Sheet, Snackbar, SnackbarHost, ThemePicker, Toggle), 테마 적용·저장, 폭 구간 `createViewport`                                                 | 첫 발행 준비 |
 | [`@sch0718/license-notices`](packages/license-notices)   | 라이선스 고지 파일 생성 `writeNotices()`                                                                                                                                                                                         | 첫 발행 준비 |
 | [`@sch0718/kakao-share`](packages/kakao-share)           | 카카오톡 피드 공유. SDK를 SRI로 확인해 지연 로드하고 키는 앱이 주입                                                                                                                                                              | 첫 발행 준비 |
 | [`@sch0718/motion-kit`](packages/motion-kit)             | 움직이는 그림(애니메이션 SVG) 생성기의 기반 함수. 빌드 스크립트용                                                                                                                                                                | 첫 발행 준비 |
+| [`@sch0718/token-check`](packages/token-check)           | 디자인 토큰 시험 도구. `tokens.css` 세 블록 읽기·구성 검사, WCAG 대비 계산. Node 시험 전용(devDependency)                                                                                                                        | 첫 발행 준비 |
 
 ## 넣는 기준
 
@@ -34,21 +35,22 @@
 
 직접 만들지 않고 널리 쓰는 도구를 골랐습니다. 별 수는 2026-10-27 GitHub 기준입니다.
 
-| 용도                    | 도구                                                                                                                                  |            별 |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------: |
-| 패키지 매니저·workspace | [pnpm](https://github.com/pnpm/pnpm) 11                                                                                               |         36.9k |
-| 버전·변경 기록·발행     | [Changesets](https://github.com/changesets/changesets)                                                                                |         12.5k |
-| 빌드(JS + `.d.ts`)      | [TypeScript](https://github.com/microsoft/TypeScript) `tsc` 5.9                                                                       |        111.6k |
-| 빌드(Svelte 패키지)     | [`@sveltejs/package`](https://github.com/sveltejs/kit/tree/main/packages/package) 2.5.8 (별: sveltejs/kit)                            |         20.9k |
-| Worker 토큰 검증        | [jose](https://github.com/panva/jose)                                                                                                 |          7.8k |
-| 시험                    | [Vitest](https://github.com/vitest-dev/vitest)                                                                                        |         17.3k |
-| Svelte 컴포넌트 시험    | [Testing Library Svelte](https://github.com/testing-library/svelte-testing-library)                                                   |           665 |
-| 시험용 DOM              | [jsdom](https://github.com/jsdom/jsdom) 29 (30은 쓰지 않음, 아래)                                                                     |         21.7k |
-| 린트                    | [ESLint](https://github.com/eslint/eslint) + [typescript-eslint](https://github.com/typescript-eslint/typescript-eslint)              | 27.6k / 16.5k |
-| 포맷                    | [Prettier](https://github.com/prettier/prettier)                                                                                      |         52.4k |
-| tsconfig 기본값         | [tsconfig/bases](https://github.com/tsconfig/bases) `@tsconfig/strictest`                                                             |          7.9k |
-| 패키지 형식 검사        | [publint](https://github.com/publint/publint), [Are the types wrong?](https://github.com/arethetypeswrong/arethetypeswrong.github.io) |   1.3k / 1.6k |
-| 번들 크기 한도          | [Size Limit](https://github.com/ai/size-limit)                                                                                        |          7.0k |
+| 용도                        | 도구                                                                                                                                  |            별 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------: |
+| 패키지 매니저·workspace     | [pnpm](https://github.com/pnpm/pnpm) 11                                                                                               |         36.9k |
+| 버전·변경 기록·발행         | [Changesets](https://github.com/changesets/changesets)                                                                                |         12.5k |
+| 빌드(JS + `.d.ts`)          | [TypeScript](https://github.com/microsoft/TypeScript) `tsc` 5.9                                                                       |        111.6k |
+| 빌드(Svelte 패키지)         | [`@sveltejs/package`](https://github.com/sveltejs/kit/tree/main/packages/package) 2.5.8 (별: sveltejs/kit)                            |         20.9k |
+| Worker 토큰 검증            | [jose](https://github.com/panva/jose)                                                                                                 |          7.8k |
+| 시험                        | [Vitest](https://github.com/vitest-dev/vitest)                                                                                        |         17.3k |
+| Svelte 컴포넌트 시험        | [Testing Library Svelte](https://github.com/testing-library/svelte-testing-library)                                                   |           665 |
+| 시험용 DOM                  | [jsdom](https://github.com/jsdom/jsdom) 29 (30은 쓰지 않음, 아래)                                                                     |         21.7k |
+| 린트                        | [ESLint](https://github.com/eslint/eslint) + [typescript-eslint](https://github.com/typescript-eslint/typescript-eslint)              | 27.6k / 16.5k |
+| 포맷                        | [Prettier](https://github.com/prettier/prettier)                                                                                      |         52.4k |
+| tsconfig 기본값             | [tsconfig/bases](https://github.com/tsconfig/bases) `@tsconfig/strictest`                                                             |          7.9k |
+| 패키지 형식 검사            | [publint](https://github.com/publint/publint), [Are the types wrong?](https://github.com/arethetypeswrong/arethetypeswrong.github.io) |   1.3k / 1.6k |
+| 번들 크기 한도              | [Size Limit](https://github.com/ai/size-limit)                                                                                        |          7.0k |
+| 색 대비 계산(`token-check`) | [chroma.js](https://github.com/gka/chroma.js) 3.2 (10.6k, 2026-11-13 확인)                                                            |         10.6k |
 
 - 선언 파일은 TypeScript 5.9로 만듭니다. 쓰는 서비스 중 가장 낮은 버전(가즈아 5.9)에 맞춘 것이고, TS 6(랜드마크)에서도 호환 시험으로 확인합니다. Dependabot은 TypeScript 메이저 버전을 올리지 않습니다(`.github/dependabot.yml`).
 - `@sveltejs/package` 3은 TypeScript 6을 요구해 2.5를 씁니다.

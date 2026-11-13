@@ -11,7 +11,9 @@
     "exactOptionalPropertyTypes": false,
     "noPropertyAccessFromIndexSignature": false,
     // 가즈아 코드는 색인 접근을 undefined로 보지 않는다(가즈아 tsconfig는 strict만 켠다). 켜려면 컴포넌트를 고쳐야 한다.
-    "noUncheckedIndexedAccess": false
+    "noUncheckedIndexedAccess": false,
+    // 시험이 쓰는 워크스페이스 패키지는 빌드 전에도 원본 타입으로 검사한다(vitest.config.ts의 alias와 같은 경로).
+    "paths": { "@sch0718/token-check": ["../token-check/src/index.ts"] }
   },
   "include": ["src", "test"]
 }

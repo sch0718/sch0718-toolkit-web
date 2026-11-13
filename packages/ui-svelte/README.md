@@ -27,6 +27,45 @@ applyTheme('light'); // data-theme="light"
 applyTheme('system'); // data-theme을 지워 시스템 설정을 따른다
 ```
 
+고른 테마는 `readThemeChoice`·`saveThemeChoice`로 `localStorage`에 둡니다. 키는 서비스가 정합니다. 저장소가 막히면 읽기는 `'system'`, 쓰기는 `false`를 돌려주므로 화면에 적용할지, 알릴지는 서비스가 정합니다. 깜빡임을 막으려면 마운트 전에 읽어 적용합니다.
+
+```ts
+// main.ts
+import { applyTheme, readThemeChoice } from '@sch0718/ui-svelte';
+applyTheme(readThemeChoice('myapp:theme'));
+```
+
+```svelte
+<script lang="ts">
+  import { applyTheme, saveThemeChoice, showSnackbar, ThemePicker, type ThemeChoice } from '@sch0718/ui-svelte';
+  let { theme = $bindable<ThemeChoice>() } = $props();
+  function change(choice: ThemeChoice) {
+    if (!saveThemeChoice('myapp:theme', choice)) showSnackbar('테마를 저장하지 못했어요');
+    theme = choice;
+    applyTheme(choice);
+  }
+</script>
+
+<ThemePicker value={theme} onchange={change} onSurface />
+```
+
+`ThemePicker`는 `Segmented`에 라이트 · 다크 · 시스템(`THEME_OPTIONS`)을 넣은 것입니다.
+
+## 공용 토큰
+
+| 종류          | 토큰                                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 면·글자·경계  | `--bg`, `--surface`, `--surface2`, `--t1..3`, `--line`, `--line-strong`(누를 수 있는 테두리, 모든 면 위 3:1)              |
+| 강조·상태     | `--accent`, `--accent-soft`, `--on-accent`, `--snack-action`, `--ok`·`--warn`·`--err`와 각 `-soft`, `--scrim`, `--shadow` |
+| 글자 크기     | `--fs-headline`(28), `--fs-title`(17), `--fs-body`(15), `--fs-sub`(13), `--fs-label`(11), 글꼴 `--font`                   |
+| 간격·크기     | `--sp-1..8`(4px 단위), `--sp-10`(40), `--sp-12`(48), `--gutter`(16, 600px 이상 24), `--touch`(44), `--bar-h`(56)          |
+| 둥글기        | `--r-chip`(999), `--r-card`(16), `--r-sheet`(24)                                                                          |
+| 포커스·움직임 | `--focus-ring`(기본 `2px solid var(--accent)`, 전역 `:focus-visible`이 씀), `--ease`, `--dur-fast/base/slow`              |
+
+대비는 시험(`test/tokens.test.ts`)이 지킵니다. 글자 토큰은 모든 면 위 4.5:1, `--accent`는 `--accent-soft`를 어느 면에 얹어도 4.5:1입니다. 상태 옅은 배경(`--ok-soft` 등)은 카드(`--surface`) 위에 두는 것을 전제로 4.5:1을 맞췄습니다. 라이트 `--bg` 위에 바로 두면 `--ok`가 4.32:1이라 AA에 모자랍니다.
+
+포커스 링을 굵게 하려면 서비스 토큰에 `--focus-ring: 3px solid var(--accent);` 한 줄만 둡니다(테마와 무관하므로 라이트 블록에만).
+
 ## 서비스 토큰
 
 서비스 전용 토큰은 토큰 CSS와 같은 세 블록(라이트 / 다크 자동 / 다크 지정)에 함께 넣어야 합니다. 한 블록이라도 빠지면 그 테마에서 값이 없거나 라이트 값이 남습니다. 같은 방법으로 `--accent`를 덮어써 서비스 색을 바꿉니다. 강조색을 바꾸면 `--accent-soft`, `--on-accent`, `--snack-action`도 함께 맞추고 대비(글자 4.5:1)를 확인합니다.
@@ -71,6 +110,7 @@ applyTheme('system'); // data-theme을 지워 시스템 설정을 따른다
 | `Sheet`        | `open`, `title`, `onclose()`, `children`, `returnFocus?()`, `headerEnd?`, `closeLabel?`(닫기 단추의 접근성 이름, 기본 `'닫기'`)                  |
 | `Snackbar`     | `message`, `actionLabel?`, `onaction?`, `onhold?`, `onrelease?`. 보통은 직접 쓰지 않고 `SnackbarHost`가 그린다                                   |
 | `SnackbarHost` | 없음. 앱 루트에 한 번 둔다. 위치는 CSS 변수로 정한다(스낵바 절)                                                                                  |
+| `ThemePicker`  | `value: ThemeChoice`, `onchange(choice)`, `label?`(기본 `'테마'`), `wide?`, `onSurface?`                                                         |
 | `Toggle`       | `checked`, `label`, `onchange(checked)`, `disabled?`, `id?`, `describedby?`, `softDisabled?`                                                     |
 
 ## 스낵바
@@ -124,5 +164,23 @@ showSnackbar('지웠어요', { label: '되돌리기', run: () => restore(row) })
 - `holdSnackbarWhileFocused(el)`: 포커스가 `el`에 머무는 동안 타이머를 멈춥니다.
 - `currentSnackbar()`, `runSnackbarAction()`: 직접 호스트를 그릴 때 씁니다.
 - 타입 `SnackbarAction`(`label`, `run`, `focus?`), `SnackbarItem`.
+
+## 폭 구간
+
+`createViewport(breakpoints)`는 지금 폭 구간을 반응형 상태로 돌려줍니다. 구간 이름과 최소 폭은 서비스가 정하고, 어느 구간에도 들지 않으면 `'phone'`입니다. 컴포넌트 초기화 중에 부르고 해제할 때 `destroy()`를 부릅니다. `matchMedia`가 없으면(시험·서버 렌더) `'phone'`으로 고정됩니다.
+
+```svelte
+<script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { createViewport } from '@sch0718/ui-svelte';
+  const viewport = createViewport({ tablet: 768, desktop: 1024 });
+  onDestroy(() => viewport.destroy());
+</script>
+
+{#if viewport.current === 'phone'}<BottomTabs />{:else}<Rail />{/if}
+```
+
+- `viewportKind(width, breakpoints)`: 폭 하나를 구간 이름으로 바꿉니다(시험용).
+- `prefersReducedMotion()`: 움직임 줄이기 설정을 읽습니다.
 
 라이선스: [PolyForm Noncommercial 1.0.0](./LICENSE)

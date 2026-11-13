@@ -34,6 +34,9 @@
   "peerDependencies": {
     "svelte": "^5.57.0"
   },
+  "devDependencies": {
+    "@sch0718/token-check": "workspace:*"
+  },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   }

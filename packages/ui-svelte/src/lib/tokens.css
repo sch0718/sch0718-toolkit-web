@@ -19,6 +19,10 @@
   --ok: #0a7d0a;
   --warn: #855600;
   --err: #b82a2a;
+  --line-strong: #80868f; /* 입력칸·체크 상자처럼 누를 수 있는 테두리. 모든 면 위 3:1 이상 */
+  --ok-soft: rgba(10, 125, 10, 0.1);
+  --warn-soft: rgba(133, 86, 0, 0.1);
+  --err-soft: rgba(184, 42, 42, 0.1);
   --scrim: rgba(17, 19, 23, 0.38);
   --shadow: 0 10px 40px rgba(17, 19, 23, 0.18);
   /* 카드(--surface) 안 세그먼트: 라이트는 기본 모양(트랙 --surface2, 선택 --surface; 선택·트랙 1.13:1) */
@@ -39,6 +43,20 @@
   --r-sheet: 24px;
   --gutter: 16px;
   --touch: 44px;
+  /* 간격: 4px 단위 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --bar-h: 56px; /* 상단 바·하단 탭 높이(안전 영역 제외) */
+  /* 키보드 포커스 바깥선. 서비스는 굵기만 바꿀 수 있다(예: 3px solid var(--accent)) */
+  --focus-ring: 2px solid var(--accent);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-fast: 150ms;
   --dur-base: 200ms;
@@ -67,6 +85,10 @@
     --ok: #3ccf5a;
     --warn: #fab219;
     --err: #ff6b6b;
+    --line-strong: #7a808a;
+    --ok-soft: rgba(60, 207, 90, 0.14);
+    --warn-soft: rgba(250, 178, 25, 0.14);
+    --err-soft: rgba(255, 107, 107, 0.14);
     --scrim: rgba(0, 0, 0, 0.55);
     --shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     /* 다크는 기본 모양이면 선택(--surface)이 트랙보다 어두워 꺼져 보인다: 트랙 --bg, 선택 --surface2(1.19:1) */
@@ -91,6 +113,10 @@
   --ok: #3ccf5a;
   --warn: #fab219;
   --err: #ff6b6b;
+  --line-strong: #7a808a;
+  --ok-soft: rgba(60, 207, 90, 0.14);
+  --warn-soft: rgba(250, 178, 25, 0.14);
+  --err-soft: rgba(255, 107, 107, 0.14);
   --scrim: rgba(0, 0, 0, 0.55);
   --shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   /* 다크는 기본 모양이면 선택(--surface)이 트랙보다 어두워 꺼져 보인다: 트랙 --bg, 선택 --surface2(1.19:1) */
@@ -138,7 +164,7 @@ select:focus-visible,
 textarea:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--focus-ring);
   outline-offset: 2px;
   border-radius: 8px;
 }
