@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Badge from '../src/lib/Badge.svelte';
 import Banner from '../src/lib/Banner.svelte';
 import Chip from '../src/lib/Chip.svelte';
+import Icon from '../src/lib/Icon.svelte';
+import ThemePicker from '../src/lib/ThemePicker.svelte';
 import Toggle from '../src/lib/Toggle.svelte';
 import toggleSource from '../src/lib/Toggle.svelte?raw';
 
@@ -96,5 +98,66 @@ describe('Toggle', () => {
     expect(v.track.classList.contains('on')).toBe(true);
     expect(v.bg(v.track)).toBe('var(--accent)');
     expect(v.bg(v.thumb)).toBe('var(--on-accent)');
+  });
+});
+
+describe('ThemePicker', () => {
+  it('라이트·다크·시스템 중 하나를 고르고 ThemeChoice로 알린다', async () => {
+    const onchange = vi.fn();
+    render(ThemePicker, { value: 'system', onchange });
+    const group = screen.getByRole('radiogroup', { name: '테마' });
+    expect(group).toBeTruthy();
+    expect(screen.getByRole('radio', { name: '시스템' }).getAttribute('aria-checked')).toBe('true');
+    await fireEvent.click(screen.getByRole('radio', { name: '다크' }));
+    expect(onchange).toHaveBeenCalledWith('dark');
+  });
+
+  it('접근성 이름을 바꿀 수 있다', () => {
+    render(ThemePicker, { value: 'light', onchange: vi.fn(), label: '화면 테마' });
+    expect(screen.getByRole('radiogroup', { name: '화면 테마' })).toBeTruthy();
+  });
+});
+
+describe('Icon', () => {
+  // Lucide `House`와 같은 모양 데이터
+  const house = [
+    ['path', { d: 'M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8' }],
+    ['circle', { cx: 12, cy: 12, r: 2 }],
+  ] as const;
+
+  it('모양 데이터를 SVG 요소로 그리고 장식용으로 숨긴다', () => {
+    const { container } = render(Icon, { icon: house });
+    const svg = container.querySelector('svg')!;
+    expect(svg.getAttribute('aria-hidden')).toBe('true');
+    expect(svg.getAttribute('width')).toBe('24');
+    expect(svg.getAttribute('stroke-width')).toBe('2');
+    expect(svg.getAttribute('fill')).toBe('none');
+    const path = svg.querySelector('path')!;
+    expect(path.getAttribute('d')).toBe(house[0][1].d);
+    expect(path.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(svg.querySelector('circle')?.getAttribute('r')).toBe('2');
+  });
+
+  it('속성 값을 이스케이프하고 이상한 태그·속성 이름은 버린다', () => {
+    const { container } = render(Icon, {
+      icon: [
+        ['path', { d: 'M0 0"/><script>x</script>', 'on click': 'x' }],
+        ['img src=x onerror=alert(1)', {}],
+      ],
+    });
+    const svg = container.querySelector('svg')!;
+    expect(svg.querySelectorAll('*').length).toBe(1);
+    expect(svg.querySelector('path')?.getAttribute('d')).toBe('M0 0"/><script>x</script>');
+    expect(svg.querySelector('script, img')).toBeNull();
+  });
+
+  it('크기·굵기·채움을 바꾼다', () => {
+    const { container } = render(Icon, { icon: house, size: 20, strokeWidth: 1.5, filled: true });
+    const svg = container.querySelector('svg')!;
+    expect([
+      svg.getAttribute('width'),
+      svg.getAttribute('stroke-width'),
+      svg.getAttribute('fill'),
+    ]).toEqual(['20', '1.5', 'currentColor']);
   });
 });

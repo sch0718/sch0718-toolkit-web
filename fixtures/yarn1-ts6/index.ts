@@ -64,3 +64,23 @@ export const fakeUrl: string = fakeAuthorizeUrl(
   'https://kauth.kakao.com/oauth/authorize?state=s',
   'http://localhost/dev/fake-social',
 );
+
+// 토큰 시험 도구(Node 시험 전용)의 선언을 검사한다.
+import {
+  blockProblems,
+  composite,
+  contrast,
+  mergeTokenBlocks,
+  readTokenBlocks,
+  tokenValue,
+  type TokenBlocks,
+} from '@sch0718/token-check';
+const tokenBlocks: TokenBlocks = mergeTokenBlocks(
+  readTokenBlocks(':root{--bg:#fff}'),
+  readTokenBlocks(':root{--t1:#000}'),
+);
+export const tokenProblems: string[] = blockProblems(tokenBlocks, /^sp-/);
+export const ratio: number = contrast(
+  tokenValue(tokenBlocks.light, 't1'),
+  composite('rgba(0,0,0,.1)', '#fff'),
+);

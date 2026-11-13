@@ -39,7 +39,19 @@ import {
   type D1Database,
 } from '@sch0718/firebase-session/worker';
 import { writeNotices } from '@sch0718/license-notices';
-import { applyTheme, showSnackbar, type ThemeChoice } from '@sch0718/ui-svelte';
+import {
+  applyTheme,
+  createViewport,
+  isThemeChoice,
+  prefersReducedMotion,
+  readThemeChoice,
+  saveThemeChoice,
+  showSnackbar,
+  THEME_OPTIONS,
+  viewportKind,
+  type Breakpoints,
+  type ThemeChoice,
+} from '@sch0718/ui-svelte';
 import type { Plugin } from 'vite';
 
 const cfg = readSyncConfig({ VITE_SYNC_API_URL: 'https://api.example.test' });
@@ -71,9 +83,18 @@ export const sessions = createSessionAuth({
 export const purged: Promise<number> = purgeSessions(db, Date.now());
 export const notices: typeof writeNotices = writeNotices;
 
-const theme: ThemeChoice = 'dark';
+const theme: ThemeChoice = readThemeChoice('compat:theme');
 applyTheme(theme);
+export const themeSaved: boolean = saveThemeChoice('compat:theme', 'dark');
+export const themeLabels: string[] = THEME_OPTIONS.map((o) => o.label);
+export const isTheme: boolean = isThemeChoice('sepia');
 showSnackbar('저장했어요');
+const BREAKPOINTS: Breakpoints<'tablet' | 'desktop'> = { tablet: 768, desktop: 1024 };
+export const kind: 'phone' | 'tablet' | 'desktop' = viewportKind(800, BREAKPOINTS);
+const viewport = createViewport(BREAKPOINTS);
+export const current: 'phone' | 'tablet' | 'desktop' = viewport.current;
+viewport.destroy();
+export const reduced: boolean = prefersReducedMotion();
 
 import {
   KAKAO_LINK_MAX,
@@ -172,4 +193,24 @@ export const testTokens = createTestTokens({ projectId: 'compat-test' });
 export const fakeUrl: string = fakeAuthorizeUrl(
   'https://kauth.kakao.com/oauth/authorize?state=s',
   'http://localhost/dev/fake-social',
+);
+
+// 토큰 시험 도구(Node 시험 전용)의 선언을 검사한다.
+import {
+  blockProblems,
+  composite,
+  contrast,
+  mergeTokenBlocks,
+  readTokenBlocks,
+  tokenValue,
+  type TokenBlocks,
+} from '@sch0718/token-check';
+const tokenBlocks: TokenBlocks = mergeTokenBlocks(
+  readTokenBlocks(':root{--bg:#fff}'),
+  readTokenBlocks(':root{--t1:#000}'),
+);
+export const tokenProblems: string[] = blockProblems(tokenBlocks, /^sp-/);
+export const ratio: number = contrast(
+  tokenValue(tokenBlocks.light, 't1'),
+  composite('rgba(0,0,0,.1)', '#fff'),
 );
