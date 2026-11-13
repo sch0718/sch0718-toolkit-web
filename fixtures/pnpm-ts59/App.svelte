@@ -1,6 +1,7 @@
 <script lang="ts">
   import '@sch0718/ui-svelte/tokens.css';
-  import { Banner, Sheet, SnackbarHost, ThemePicker, Toggle, type ThemeChoice } from '@sch0718/ui-svelte';
+  import { Banner, Icon, Sheet, SnackbarHost, ThemePicker, Toggle, type IconNode, type ThemeChoice } from '@sch0718/ui-svelte';
+  const house: IconNode = [['path', { d: 'M3 10l9-7 9 7' }]];
 
   let open = $state(true);
   let on = $state(false);
@@ -13,4 +14,5 @@
   <p>본문</p>
 </Sheet>
 <ThemePicker value={theme} onchange={(t) => (theme = t)} label="화면 테마" onSurface />
+<Icon icon={house} size={20} />
 <SnackbarHost />

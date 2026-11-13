@@ -106,6 +106,7 @@ applyTheme(readThemeChoice('myapp:theme'));
 | `Badge`        | `tone?: 'neutral' \| 'nxt' \| 'warn'`, `children`                                                                                                |
 | `Banner`       | `message`, `actionLabel?`, `onaction?`, `tone?: 'info' \| 'warn' \| 'error'`, `id?`, `live?`(기본 `true`)                                        |
 | `Chip`         | `selected?`, `tone?: 'default' \| 'metric'`, `disabled?`, `onclick?`, `children`                                                                 |
+| `Icon`         | `icon: IconNode`, `size?`(24), `strokeWidth?`(2), `filled?`. 아이콘 절                                                                           |
 | `Segmented`    | `options: { value, label, sub?, disabled?, reason? }[]`, `value`, `onchange(value)`, `label?`, `wide?`, `wrap?`, `onSurface?`(카드 안에 놓을 때) |
 | `Sheet`        | `open`, `title`, `onclose()`, `children`, `returnFocus?()`, `headerEnd?`, `closeLabel?`(닫기 단추의 접근성 이름, 기본 `'닫기'`)                  |
 | `Snackbar`     | `message`, `actionLabel?`, `onaction?`, `onhold?`, `onrelease?`. 보통은 직접 쓰지 않고 `SnackbarHost`가 그린다                                   |
@@ -167,18 +168,26 @@ showSnackbar('지웠어요', { label: '되돌리기', run: () => restore(row) })
 
 ## 아이콘
 
-이 패키지는 아이콘을 넣지 않습니다(런타임 의존성 0). 서비스는 [Lucide](https://github.com/lucide-icons/lucide)(GitHub 별 25.7k, 2026-11-13 확인)의 Svelte 패키지 `@lucide/svelte`를 아이콘마다 따로 불러와 씁니다. 랜드마크도 Lucide를 쓰므로 서비스 사이에 아이콘 모양이 맞습니다.
+`Icon`은 아이콘 모양 데이터(`IconNode`, `[태그, 속성]` 목록)를 24×24 선 아이콘으로 그립니다. 모양 데이터는 넣지 않고(런타임 의존성 0), 서비스가 [Lucide](https://github.com/lucide-icons/lucide)(GitHub 별 25.7k, 2026-11-13 확인)의 데이터 전용 패키지 `lucide`에서 가져와 넘깁니다. 랜드마크도 Lucide를 쓰므로 서비스 사이에 아이콘 모양이 맞습니다.
 
-- 아이콘마다 경로로 불러옵니다(`@lucide/svelte/icons/<이름>`). 묶음 진입점(`@lucide/svelte`)은 쓰지 않습니다.
+- `lucide`는 `sideEffects: false`라 쓰는 아이콘의 path 데이터만 번들에 들어갑니다. `@lucide/svelte`는 아이콘마다 컴포넌트 런타임이 붙어(아이콘 9개에 첫 JS gzip 약 4.5 kB, selah에서 측정) 쓰지 않습니다.
 - 선 굵기는 Lucide 기본값 2, 크기는 20px(목록·단추 안) 또는 24px(탭·레일)입니다. 색은 `currentColor`로 글자색을 따릅니다.
-- 장식용이면 `aria-hidden="true"`를 주고 접근성 이름은 링크·단추가 맡습니다.
+- 장식용이라 `aria-hidden="true"`로 그립니다. 접근성 이름은 링크·단추가 맡습니다.
+
+| props          | 설명                                             |
+| -------------- | ------------------------------------------------ |
+| `icon`         | `IconNode`. 예: `import { House } from 'lucide'` |
+| `size?`        | px, 기본 24                                      |
+| `strokeWidth?` | 기본 2                                           |
+| `filled?`      | 면을 글자색으로 채움(깃발 표시 등)               |
 
 ```svelte
 <script lang="ts">
-  import Settings from '@lucide/svelte/icons/settings';
+  import { Settings } from 'lucide';
+  import { Icon } from '@sch0718/ui-svelte';
 </script>
 
-<button type="button" aria-label="설정"><Settings size={24} aria-hidden="true" /></button>
+<button type="button" aria-label="설정"><Icon icon={Settings} /></button>
 ```
 
 ## 폭 구간
