@@ -1,5 +1,12 @@
 # @sch0718/ui-svelte
 
+## 0.3.0
+
+### Minor Changes
+
+- [#36](https://github.com/sch0718/sch0718-toolkit-web/pull/36) [`d1d7c6d`](https://github.com/sch0718/sch0718-toolkit-web/commit/d1d7c6d314412b1415e4c13cc59a7495c6029098) Thanks [@sch0718](https://github.com/sch0718)! - 라이트·다크 모드와 따로 고르는 색 팔레트 10종과 저장·적용 API, 키보드로 고를 수 있는 PalettePicker를 더했습니다.
+  팔레트별 대비 시험과 파일로 여는 견본 페이지, 앱 마이그레이션 안내를 추가했습니다.
+
 ## 0.2.0
 
 ### Minor Changes
