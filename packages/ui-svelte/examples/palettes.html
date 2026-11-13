@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>색 팔레트 10종 견본</title>
+    <link rel="stylesheet" href="../src/lib/tokens.css" />
+    <style>
+      body {
+        padding: 24px;
+      }
+      h1 {
+        font-size: var(--fs-headline);
+        margin-bottom: 8px;
+      }
+      .palettes {
+        display: grid;
+        gap: 24px;
+        margin-top: 24px;
+      }
+      h2 {
+        font-size: var(--fs-title);
+        margin-bottom: 8px;
+      }
+      small {
+        color: var(--t2);
+        font-weight: normal;
+      }
+      .modes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      iframe {
+        width: 100%;
+        height: 530px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-card);
+      }
+      @media (max-width: 599px) {
+        body {
+          padding: 12px;
+        }
+        .modes {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>색 팔레트 10종</h1>
+    <p>각 행은 라이트·다크 순서입니다. 각 견본은 독립된 문서에서 토큰을 적용합니다.</p>
+    <main class="palettes">
+      <section aria-label="보라">
+        <h2>보라 <small>violet</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=violet&amp;theme=light"
+            title="보라 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=violet&amp;theme=dark" title="보라 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="파랑">
+        <h2>파랑 <small>blue</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=blue&amp;theme=light"
+            title="파랑 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=blue&amp;theme=dark" title="파랑 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="청록">
+        <h2>청록 <small>teal</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=teal&amp;theme=light"
+            title="청록 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=teal&amp;theme=dark" title="청록 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="파스텔">
+        <h2>파스텔 <small>pastel</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=pastel&amp;theme=light"
+            title="파스텔 라이트"
+          ></iframe>
+          <iframe
+            src="palette-frame.html?palette=pastel&amp;theme=dark"
+            title="파스텔 다크"
+          ></iframe>
+        </div>
+      </section>
+      <section aria-label="종이">
+        <h2>종이 <small>paper</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=paper&amp;theme=light"
+            title="종이 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=paper&amp;theme=dark" title="종이 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="밤">
+        <h2>밤 <small>night</small></h2>
+        <div class="modes">
+          <iframe src="palette-frame.html?palette=night&amp;theme=light" title="밤 라이트"></iframe>
+          <iframe src="palette-frame.html?palette=night&amp;theme=dark" title="밤 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="숲">
+        <h2>숲 <small>forest</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=forest&amp;theme=light"
+            title="숲 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=forest&amp;theme=dark" title="숲 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="장미">
+        <h2>장미 <small>rose</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=rose&amp;theme=light"
+            title="장미 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=rose&amp;theme=dark" title="장미 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="자두">
+        <h2>자두 <small>plum</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=plum&amp;theme=light"
+            title="자두 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=plum&amp;theme=dark" title="자두 다크"></iframe>
+        </div>
+      </section>
+      <section aria-label="모노">
+        <h2>모노 <small>mono</small></h2>
+        <div class="modes">
+          <iframe
+            src="palette-frame.html?palette=mono&amp;theme=light"
+            title="모노 라이트"
+          ></iframe>
+          <iframe src="palette-frame.html?palette=mono&amp;theme=dark" title="모노 다크"></iframe>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

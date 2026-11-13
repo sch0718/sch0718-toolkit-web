@@ -39,3 +39,14 @@ export {
 } from './viewport.svelte.js';
 export type { IconNode } from './icon.js';
 export type { NavLink } from './nav.js';
+export { default as PalettePicker } from './PalettePicker.svelte';
+export {
+  applyPalette,
+  DEFAULT_PALETTE,
+  isPaletteId,
+  PALETTES,
+  readPaletteChoice,
+  savePaletteChoice,
+  type PaletteId,
+  type PaletteOption,
+} from './theme.js';
