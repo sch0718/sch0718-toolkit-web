@@ -5,6 +5,7 @@
     BottomNav,
     Icon,
     NavItem,
+    PalettePicker,
     Sheet,
     SnackbarHost,
     ThemePicker,
@@ -12,6 +13,7 @@
     TopBar,
     type IconNode,
     type NavLink,
+    type PaletteId,
     type ThemeChoice,
   } from '@sch0718/ui-svelte';
   const house: IconNode = [['path', { d: 'M3 10l9-7 9 7' }]];
@@ -20,6 +22,7 @@
   let open = $state(true);
   let on = $state(false);
   let theme = $state<ThemeChoice>('system');
+  let palette = $state<PaletteId>('violet');
 </script>
 
 <Banner message="안내" tone="warn" />
@@ -33,3 +36,5 @@
 <NavItem href="#/" label="홈" icon={house} shape="rail" />
 <BottomNav {items} />
 <SnackbarHost />
+
+<PalettePicker value={palette} onchange={(id) => (palette = id)} />

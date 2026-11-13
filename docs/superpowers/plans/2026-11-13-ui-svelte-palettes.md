@@ -19,11 +19,17 @@
 - 팔레트 하나는 세 블록이다. 기본 세 블록과 같은 구조이고 다크 두 블록의 값은 같다.
 
 ```css
-:root[data-palette='blue'] { /* 라이트 */ }
-@media (prefers-color-scheme: dark) {
-  :root[data-palette='blue']:not([data-theme='light']) { /* 다크 자동 */ }
+:root[data-palette='blue'] {
+  /* 라이트 */
 }
-:root[data-palette='blue'][data-theme='dark'] { /* 다크 지정 */ }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette='blue']:not([data-theme='light']) {
+    /* 다크 자동 */
+  }
+}
+:root[data-palette='blue'][data-theme='dark'] {
+  /* 다크 지정 */
+}
 ```
 
 - 우선순위(명시도): 팔레트 라이트 (0,2,0), 팔레트 다크 (0,3,0). 기본 다크 블록 (0,2,0)보다 뒤에 있고 다크는 명시도가 더 높아 모드별로 맞게 이긴다. 팔레트 라이트와 다크는 같은 토큰 묶음을 정의한다(시험이 지킨다).
@@ -42,18 +48,18 @@
 
 hue는 라이트 accent 기준. violet과 night는 둘 다 보라지만 기존 테마를 모으는 것이라 그대로 둔다(night는 남색 면이 정체성). 새 4종은 기존과 hue가 겹치지 않게 골랐다. 주황·코럴은 paper(벽돌)와, 노랑·호박은 `--warn`과 겹쳐 뺐다. mono는 hue가 없는 흑백이고, pastel(라이트 검정)과는 다크(라임 대 흰색)와 강조 글자색(라임)이 다르다.
 
-| id | 이름 | 출처 | hue | 라이트 accent | 다크 accent |
-|---|---|---|---|---|---|
-| violet | 보라 | 기존: 공용 기본 | 247 | #5b47e0 | #a093ff |
-| blue | 파랑 | 기존: repass | 223 | #2f5bd3 | #8fb0ff |
-| teal | 청록 | 기존: selah | 197 | #1d5a73 | #7cc4dc |
-| pastel | 파스텔 | 기존: landmark pastel | 무채/라임 | #18181b | #d9f99d |
-| paper | 종이 | 기존: landmark paper | 12 | #a8391b | #f0896c |
-| night | 밤 | 기존: landmark night | 251 | #5e3fe6 | #b3a3ff |
-| forest | 숲 | 신규 | 149 | #1b7346 | #5fcf94 |
-| rose | 장미 | 신규 | 339 | #b01e50 | #ff8ab0 |
-| plum | 자두 | 신규 | 285 | #8c3aa6 | #d79cf0 |
-| mono | 모노 | 신규 | 무채 | #2b2f36 | #e4e6ea |
+| id     | 이름   | 출처                  | hue       | 라이트 accent | 다크 accent |
+| ------ | ------ | --------------------- | --------- | ------------- | ----------- |
+| violet | 보라   | 기존: 공용 기본       | 247       | #5b47e0       | #a093ff     |
+| blue   | 파랑   | 기존: repass          | 223       | #2f5bd3       | #8fb0ff     |
+| teal   | 청록   | 기존: selah           | 197       | #1d5a73       | #7cc4dc     |
+| pastel | 파스텔 | 기존: landmark pastel | 무채/라임 | #18181b       | #d9f99d     |
+| paper  | 종이   | 기존: landmark paper  | 12        | #a8391b       | #f0896c     |
+| night  | 밤     | 기존: landmark night  | 251       | #5e3fe6       | #b3a3ff     |
+| forest | 숲     | 신규                  | 149       | #1b7346       | #5fcf94     |
+| rose   | 장미   | 신규                  | 339       | #b01e50       | #ff8ab0     |
+| plum   | 자두   | 신규                  | 285       | #8c3aa6       | #d79cf0     |
+| mono   | 모노   | 신규                  | 무채      | #2b2f36       | #e4e6ea     |
 
 `PALETTES` 순서는 위 표 순서.
 
@@ -116,7 +122,8 @@ night   light: --bg #f2f4fb; --surface #ffffff; --surface2 #edf0f9; --line #dde2
 기존 `ThemeChoice`·`applyTheme`·`readThemeChoice`·`saveThemeChoice`·`THEME_OPTIONS`·`isThemeChoice`는 그대로 둔다. 더하는 것:
 
 ```ts
-export type PaletteId = 'violet' | 'blue' | 'teal' | 'pastel' | 'paper' | 'night' | 'forest' | 'rose' | 'plum' | 'mono';
+export type PaletteId =
+  'violet' | 'blue' | 'teal' | 'pastel' | 'paper' | 'night' | 'forest' | 'rose' | 'plum' | 'mono';
 export const DEFAULT_PALETTE: PaletteId = 'violet';
 export interface PaletteOption {
   id: PaletteId;
@@ -129,9 +136,17 @@ export function isPaletteId(value: string): value is PaletteId;
 /** <html data-palette>를 정한다. violet도 속성을 둔다(대응 블록이 없어 기본값이 보인다). */
 export function applyPalette(id: PaletteId): void;
 /** 저장값을 읽는다. 없거나 깨졌거나 저장소가 막히면 fallback(기본 DEFAULT_PALETTE). */
-export function readPaletteChoice(key: string, fallback?: PaletteId, storage?: () => Pick<Storage, 'getItem'>): PaletteId;
+export function readPaletteChoice(
+  key: string,
+  fallback?: PaletteId,
+  storage?: () => Pick<Storage, 'getItem'>,
+): PaletteId;
 /** 저장한다. 저장소가 막히면 false. */
-export function savePaletteChoice(key: string, id: PaletteId, storage?: () => Pick<Storage, 'setItem'>): boolean;
+export function savePaletteChoice(
+  key: string,
+  id: PaletteId,
+  storage?: () => Pick<Storage, 'setItem'>,
+): boolean;
 ```
 
 `index.ts`에서 모두 내보낸다.

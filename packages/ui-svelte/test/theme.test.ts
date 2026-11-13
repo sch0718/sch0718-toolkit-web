@@ -65,3 +65,93 @@ describe('THEME_OPTIONS', () => {
     expect(isThemeChoice('sepia')).toBe(false);
   });
 });
+
+import {
+  applyPalette,
+  DEFAULT_PALETTE,
+  isPaletteId,
+  PALETTES,
+  readPaletteChoice,
+  savePaletteChoice,
+} from '../src/lib/theme.js';
+
+afterEach(() => {
+  root.removeAttribute('data-palette');
+});
+
+describe('applyPalette', () => {
+  it('보라를 포함한 모든 팔레트 속성을 설정하고 모드는 유지한다', () => {
+    applyTheme('dark');
+    for (const palette of PALETTES) {
+      applyPalette(palette.id);
+      expect(root.getAttribute('data-palette')).toBe(palette.id);
+      expect(root.getAttribute('data-theme')).toBe('dark');
+    }
+  });
+});
+
+describe('PALETTES', () => {
+  it('계획 순서의 식별자와 한국어 이름을 제공한다', () => {
+    expect(DEFAULT_PALETTE).toBe('violet');
+    expect(PALETTES.map(({ id, label }) => [id, label])).toEqual([
+      ['violet', '보라'],
+      ['blue', '파랑'],
+      ['teal', '청록'],
+      ['pastel', '파스텔'],
+      ['paper', '종이'],
+      ['night', '밤'],
+      ['forest', '숲'],
+      ['rose', '장미'],
+      ['plum', '자두'],
+      ['mono', '모노'],
+    ]);
+    expect(PALETTES.every(({ id }) => isPaletteId(id))).toBe(true);
+    expect(isPaletteId('sepia')).toBe(false);
+    expect(isPaletteId('')).toBe(false);
+  });
+});
+
+describe('readPaletteChoice / savePaletteChoice', () => {
+  const blocked = () => {
+    throw new Error('SecurityError');
+  };
+
+  it('모든 팔레트 저장값을 다시 읽는다', () => {
+    for (const { id } of PALETTES) {
+      expect(savePaletteChoice('app:palette', id)).toBe(true);
+      expect(localStorage.getItem('app:palette')).toBe(id);
+      expect(readPaletteChoice('app:palette')).toBe(id);
+    }
+  });
+
+  it('값이 없거나 깨졌으면 기본 팔레트나 지정한 대체값을 읽는다', () => {
+    expect(readPaletteChoice('app:palette')).toBe('violet');
+    expect(readPaletteChoice('app:palette', 'blue')).toBe('blue');
+    localStorage.setItem('app:palette', 'sepia');
+    expect(readPaletteChoice('app:palette')).toBe('violet');
+    expect(readPaletteChoice('app:palette', 'teal')).toBe('teal');
+  });
+
+  it('저장소 접근이 막히면 대체값과 false를 반환한다', () => {
+    expect(readPaletteChoice('app:palette', undefined, blocked)).toBe('violet');
+    expect(readPaletteChoice('app:palette', 'blue', blocked)).toBe('blue');
+    expect(savePaletteChoice('app:palette', 'blue', blocked)).toBe(false);
+  });
+
+  it('저장소 메서드가 실패하면 대체값과 false를 반환한다', () => {
+    const unreadable = () => ({ getItem: blocked });
+    const full = () => ({ setItem: blocked });
+    expect(readPaletteChoice('app:palette', 'teal', unreadable)).toBe('teal');
+    expect(savePaletteChoice('app:palette', 'teal', full)).toBe(false);
+  });
+
+  it('주입한 저장소로 읽고 쓴다', () => {
+    const values = new Map<string, string>();
+    const storage = () => ({
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+    expect(savePaletteChoice('custom:palette', 'forest', storage)).toBe(true);
+    expect(readPaletteChoice('custom:palette', 'violet', storage)).toBe('forest');
+  });
+});

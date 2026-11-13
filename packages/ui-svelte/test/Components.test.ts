@@ -161,3 +161,76 @@ describe('Icon', () => {
     ]).toEqual(['20', '1.5', 'currentColor']);
   });
 });
+
+import PalettePicker from '../src/lib/PalettePicker.svelte';
+import { PALETTES, type PaletteId } from '../src/lib/theme.js';
+
+describe('PalettePicker', () => {
+  it('한국어 이름의 라디오 열 개와 선택 상태·탭 정지점을 표시한다', () => {
+    render(PalettePicker, { value: 'teal', onchange: vi.fn() });
+    expect(screen.getByRole('radiogroup', { name: '색 테마' })).toBeTruthy();
+    expect(screen.getAllByRole('radio')).toHaveLength(10);
+    for (const { id, label } of PALETTES) {
+      const radio = screen.getByRole('radio', { name: label });
+      expect(radio.getAttribute('aria-checked')).toBe(String(id === 'teal'));
+      expect(radio.getAttribute('tabindex')).toBe(id === 'teal' ? '0' : '-1');
+      expect(radio.querySelector('[aria-hidden="true"]')).toBeTruthy();
+    }
+  });
+
+  it('묶음의 접근 가능한 이름을 바꾼다', () => {
+    render(PalettePicker, { value: 'violet', onchange: vi.fn(), label: '앱 색상' });
+    expect(screen.getByRole('radiogroup', { name: '앱 색상' })).toBeTruthy();
+  });
+
+  it('다른 항목 클릭만 알리고 값이 바뀌면 탭 정지점을 옮긴다', async () => {
+    const onchange = vi.fn();
+    const { rerender } = render(PalettePicker, { value: 'violet', onchange });
+    await fireEvent.click(screen.getByRole('radio', { name: '보라' }));
+    expect(onchange).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('radio', { name: '파랑' }));
+    expect(onchange).toHaveBeenCalledExactlyOnceWith('blue');
+    await rerender({ value: 'blue' });
+    expect(screen.getByRole('radio', { name: '파랑' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: '파랑' }).getAttribute('tabindex')).toBe('0');
+    expect(screen.getByRole('radio', { name: '보라' }).getAttribute('tabindex')).toBe('-1');
+    await fireEvent.click(screen.getByRole('radio', { name: '파랑' }));
+    expect(onchange).toHaveBeenCalledTimes(1);
+  });
+
+  it.each<[PaletteId, string, PaletteId]>([
+    ['blue', 'ArrowRight', 'teal'],
+    ['blue', 'ArrowDown', 'teal'],
+    ['blue', 'ArrowLeft', 'violet'],
+    ['blue', 'ArrowUp', 'violet'],
+    ['mono', 'ArrowRight', 'violet'],
+    ['mono', 'ArrowDown', 'violet'],
+    ['violet', 'ArrowLeft', 'mono'],
+    ['violet', 'ArrowUp', 'mono'],
+  ])('%s에서 %s로 %s를 고르고 포커스를 옮긴다', async (value, key, next) => {
+    const onchange = vi.fn();
+    const { rerender } = render(PalettePicker, { value, onchange });
+    const current = screen.getByRole('radio', {
+      name: PALETTES.find((p) => p.id === value)!.label,
+    });
+    const target = screen.getByRole('radio', { name: PALETTES.find((p) => p.id === next)!.label });
+    current.focus();
+    await fireEvent.keyDown(current, { key });
+    expect(onchange).toHaveBeenCalledExactlyOnceWith(next);
+    expect(document.activeElement).toBe(target);
+    await rerender({ value: next });
+    expect(target.getAttribute('aria-checked')).toBe('true');
+    expect(target.getAttribute('tabindex')).toBe('0');
+    expect(current.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('화살표가 아닌 키로 선택을 바꾸지 않는다', async () => {
+    const onchange = vi.fn();
+    render(PalettePicker, { value: 'violet', onchange });
+    const current = screen.getByRole('radio', { name: '보라' });
+    current.focus();
+    await fireEvent.keyDown(current, { key: 'Tab' });
+    expect(onchange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(current);
+  });
+});

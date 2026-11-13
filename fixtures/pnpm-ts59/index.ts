@@ -214,3 +214,20 @@ export const ratio: number = contrast(
   tokenValue(tokenBlocks.light, 't1'),
   composite('rgba(0,0,0,.1)', '#fff'),
 );
+
+// 색 팔레트 API를 소비자 TypeScript 5.9에서 검사한다.
+import {
+  applyPalette,
+  DEFAULT_PALETTE,
+  isPaletteId,
+  PALETTES,
+  readPaletteChoice,
+  savePaletteChoice,
+  type PaletteId,
+  type PaletteOption,
+} from '@sch0718/ui-svelte';
+const palette: PaletteId = readPaletteChoice('compat:palette', DEFAULT_PALETTE);
+applyPalette(palette);
+export const paletteSaved: boolean = savePaletteChoice('compat:palette', 'blue');
+export const paletteOptions: readonly PaletteOption[] = PALETTES;
+export const isPalette: boolean = isPaletteId('blue');
