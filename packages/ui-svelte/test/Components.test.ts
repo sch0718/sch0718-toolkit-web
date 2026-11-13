@@ -138,6 +138,19 @@ describe('Icon', () => {
     expect(svg.querySelector('circle')?.getAttribute('r')).toBe('2');
   });
 
+  it('속성 값을 이스케이프하고 이상한 태그·속성 이름은 버린다', () => {
+    const { container } = render(Icon, {
+      icon: [
+        ['path', { d: 'M0 0"/><script>x</script>', 'on click': 'x' }],
+        ['img src=x onerror=alert(1)', {}],
+      ],
+    });
+    const svg = container.querySelector('svg')!;
+    expect(svg.querySelectorAll('*').length).toBe(1);
+    expect(svg.querySelector('path')?.getAttribute('d')).toBe('M0 0"/><script>x</script>');
+    expect(svg.querySelector('script, img')).toBeNull();
+  });
+
   it('크기·굵기·채움을 바꾼다', () => {
     const { container } = render(Icon, { icon: house, size: 20, strokeWidth: 1.5, filled: true });
     const svg = container.querySelector('svg')!;
