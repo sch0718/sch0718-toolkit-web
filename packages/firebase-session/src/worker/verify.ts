@@ -9,6 +9,10 @@ export interface VerifiedUser {
   provider?: SocialProvider;
   sub: string;
   email: string;
+  /** 검증되지 않은 소셜 표시 이름. 식별·허용 판정에 쓰지 않는다. */
+  name?: string;
+  /** 검증되지 않은 소셜 표시 이메일. 식별·허용 판정에 쓰지 않는다. */
+  unverifiedEmail?: string;
   authTime: number; // epoch ms
 }
 

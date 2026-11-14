@@ -11,6 +11,8 @@ export interface SocialSignInOptions {
   clientId: string;
   redirectUri: string;
   prompt?: string;
+  /** 추가 동의 범위. OIDC를 쓰면 openid도 포함한다. */
+  scope?: string;
   storage?: SocialStorage;
   navigate?: (url: string) => void;
   random?: (n: number) => Uint8Array;
@@ -40,6 +42,7 @@ export function socialAuthorizeUrl(
     nonce: string;
     codeChallenge: string;
     prompt?: string;
+    scope?: string;
   },
 ): string {
   const url = new URL(SOCIAL_AUTHORIZE_URLS[provider]);
@@ -48,7 +51,7 @@ export function socialAuthorizeUrl(
     client_id: p.clientId,
     redirect_uri: p.redirectUri,
     // 카카오: OIDC는 앱 설정으로 켜고, scope는 추가 동의 요청 때만 쓴다(REST API 문서). 네이버 OIDC: scope=openid 필수.
-    ...(provider === 'naver' && { scope: 'openid' }),
+    ...(p.scope !== undefined ? { scope: p.scope } : provider === 'naver' && { scope: 'openid' }),
     state: p.state,
     nonce: p.nonce,
     code_challenge: p.codeChallenge,

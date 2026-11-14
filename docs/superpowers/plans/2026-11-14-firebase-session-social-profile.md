@@ -54,16 +54,16 @@ selah 관리자 화면에 카카오·네이버 사용자가 `kakao:5185537198` �
 
 ## 계획
 
-| 순서 | 파일 | 할 일 |
-|---|---|---|
-| 1 | `src/worker/social.ts` | `cleanDisplayName`·`cleanEmail`, ID 토큰 `nickname`, 네이버 userinfo 보충, `user` 형태 |
-| 2 | `src/worker/verify.ts` | `VerifiedUser`에 선택 필드 |
-| 3 | `migrations/firebase-session-0003_social_profile.sql` | 열 두 개 |
-| 4 | `src/worker/session.ts` | `socialProfile` 옵션, INSERT·SELECT 분기, 열 없음 오류, 반환 타입 |
-| 5 | `src/client/api.ts`, `src/client/social.ts` | 응답 타입, `scope` 선택 입력 |
-| 5b | `package.json` | 0003 export, `check:package` 제외 목록 |
-| 6 | 시험 | 아래 |
-| 7 | `README.md`, `.changeset/*.md` | 문서·변경 기록 |
+| 순서 | 파일                                                  | 할 일                                                                                  |
+| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1    | `src/worker/social.ts`                                | `cleanDisplayName`·`cleanEmail`, ID 토큰 `nickname`, 네이버 userinfo 보충, `user` 형태 |
+| 2    | `src/worker/verify.ts`                                | `VerifiedUser`에 선택 필드                                                             |
+| 3    | `migrations/firebase-session-0003_social_profile.sql` | 열 두 개                                                                               |
+| 4    | `src/worker/session.ts`                               | `socialProfile` 옵션, INSERT·SELECT 분기, 열 없음 오류, 반환 타입                      |
+| 5    | `src/client/api.ts`, `src/client/social.ts`           | 응답 타입, `scope` 선택 입력                                                           |
+| 5b   | `package.json`                                        | 0003 export, `check:package` 제외 목록                                                 |
+| 6    | 시험                                                  | 아래                                                                                   |
+| 7    | `README.md`, `.changeset/*.md`                        | 문서·변경 기록                                                                         |
 
 ### 시험 (같은 동작을 두 층에서 겹치지 않는다)
 

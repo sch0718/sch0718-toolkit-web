@@ -136,13 +136,30 @@ function readBody(body: unknown, o: SocialLoginOptions): SocialBody {
 
 const SOCIAL_NONCE_PREFIX = 'nonce:';
 
+function cleanDisplayName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  // 표시를 흐리는 제어 문자와 양방향 제어 문자를 지운다.
+  // eslint-disable-next-line no-control-regex
+  const name = value.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, '').trim();
+  return [...name].slice(0, 64).join('') || undefined;
+}
+
+function cleanEmail(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const email = value.trim().toLowerCase();
+  // 검증된 이메일이 아니라 표시용 형식만 검사한다.
+  // eslint-disable-next-line no-control-regex
+  if (email.length > 254 || /[\s\u0000-\u001f\u007f-\u009f]/u.test(email)) return undefined;
+  return email.split('@').length === 2 ? email : undefined;
+}
+
 async function verifySocialIdToken(
   token: string,
   b: SocialBody,
   o: SocialLoginOptions,
   now: number,
   reauthWindow: number,
-): Promise<{ sub: string; email: string; unverifiedEmail?: string }> {
+): Promise<{ sub: string; email: string; name?: string; unverifiedEmail?: string }> {
   const invalid = () => new HttpError(401, 'invalid-token');
   let header: ReturnType<typeof decodeProtectedHeader>;
   try {
@@ -189,12 +206,13 @@ async function verifySocialIdToken(
       payload.sub.length > 128
     )
       throw invalid();
+    const name = cleanDisplayName(payload['nickname']);
+    const unverifiedEmail = cleanEmail(payload['email']);
     return {
       sub: payload.sub,
       email: '',
-      ...(typeof payload['email'] === 'string' && {
-        unverifiedEmail: payload['email'].toLowerCase(),
-      }),
+      ...(name && { name }),
+      ...(unverifiedEmail && { unverifiedEmail }),
     };
   } catch {
     throw invalid();
@@ -249,5 +267,29 @@ export async function exchangeSocial(
     !(await isAllowed?.(account, b.provider))
   )
     throw new HttpError(403, 'not-allowed', { account });
+  if (
+    b.provider === 'naver' &&
+    (!verified.name || !verified.unverifiedEmail) &&
+    'access_token' in raw &&
+    typeof raw.access_token === 'string'
+  ) {
+    try {
+      const p = (await (
+        await (o.fetch ?? fetch)('https://openapi.naver.com/v1/nid/me', {
+          headers: { Authorization: `Bearer ${raw.access_token}` },
+          signal: AbortSignal.timeout(3000),
+        })
+      ).json()) as { resultcode?: unknown; response?: Record<string, unknown> } | null;
+      const f = p?.resultcode === '00' && typeof p.response === 'object' ? p.response : undefined;
+      if (f) {
+        const name = cleanDisplayName(f['nickname']) ?? cleanDisplayName(f['name']);
+        const email = cleanEmail(f['email']);
+        if (name && !verified.name) verified.name = name;
+        if (email && !verified.unverifiedEmail) verified.unverifiedEmail = email;
+      }
+    } catch {
+      // 표시 정보 조회 실패는 로그인을 막지 않으며 토큰을 로그나 오류에 남기지 않는다.
+    }
+  }
   return { user: { ...verified, sub: account, provider: b.provider }, label: b.label };
 }

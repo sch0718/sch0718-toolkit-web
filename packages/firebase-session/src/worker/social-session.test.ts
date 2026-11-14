@@ -3,11 +3,26 @@ import { createTestD1 } from '../../test/d1.js';
 import { CLIENT_ID, socialBody, socialToken } from '../../test/social.js';
 import { certs, ME, PROJECT, T0, token } from '../../test/tokens.js';
 import { HttpError } from './http.js';
-import { createSessionAuth, SESSION_TTL, TOUCH_INTERVAL } from './session.js';
+import {
+  createSessionAuth,
+  SESSION_TTL,
+  TOUCH_INTERVAL,
+  type SessionAuthOptions,
+} from './session.js';
 import type { SocialLoginOptions } from './social.js';
 
-function setup(enabled = true, legacy = false) {
-  const db = createTestD1(legacy ? ['0001_users_sessions.sql'] : undefined);
+function setup(
+  enabled = true,
+  legacy: boolean | '0002' = false,
+  extra: Partial<SessionAuthOptions> = {},
+) {
+  const db = createTestD1(
+    legacy === '0002'
+      ? ['firebase-session-0002_social_sessions.sql']
+      : legacy
+        ? ['0001_users_sessions.sql']
+        : undefined,
+  );
   const clock = { now: T0 };
   const social: SocialLoginOptions = {
     allowedAccounts: 'kakao:AbC',
@@ -25,6 +40,7 @@ function setup(enabled = true, legacy = false) {
     random: (n) => crypto.getRandomValues(new Uint8Array(n)),
     uuid: () => crypto.randomUUID(),
     ...(enabled && { social }),
+    ...extra,
   });
   const req = (sessionId?: string, authorization?: string) =>
     new Request('https://api.test', {
@@ -36,6 +52,102 @@ function setup(enabled = true, legacy = false) {
   const login = () => auth.createSocial(req(), socialBody);
   return { auth, db, clock, social, req, login };
 }
+
+describe('소셜 표시 정보의 세션 저장·복원', () => {
+  it('켜면 세션별로 표시 정보를 고정해 복원하고 허용 판정에는 넘기지 않는다', async () => {
+    const isAllowed = vi.fn(() => true);
+    const s = setup(true, false, { socialProfile: true, isAllowed });
+    s.social.allowedAccounts = '';
+    s.social.fetch = async () =>
+      Response.json({ id_token: await socialToken({ nickname: '첫 이름', email: 'first@test' }) });
+    const a = await s.login();
+    s.social.fetch = async () =>
+      Response.json({ id_token: await socialToken({ nickname: '새 이름', email: 'new@test' }) });
+    const b = await s.login();
+    isAllowed.mockClear();
+    expect((await s.auth.authenticate(s.req(a.sessionId))).user).toEqual({
+      sub: 'kakao:AbC',
+      email: '',
+      provider: 'kakao',
+      authTime: T0,
+      name: '첫 이름',
+      unverifiedEmail: 'first@test',
+    });
+    expect((await s.auth.authenticate(s.req(b.sessionId))).user).toMatchObject({
+      name: '새 이름',
+      unverifiedEmail: 'new@test',
+    });
+    expect(isAllowed.mock.calls).toEqual([
+      [{ identity: 'kakao:AbC', provider: 'kakao' }, undefined],
+      [{ identity: 'kakao:AbC', provider: 'kakao' }, undefined],
+    ]);
+  });
+  it('표시 정보가 없으면 NULL로 저장하고 사용자 필드는 넣지 않는다', async () => {
+    const s = setup(true, false, { socialProfile: true });
+    s.social.fetch = async () =>
+      Response.json({ id_token: await socialToken({ email: undefined }) });
+    const { sessionId } = await s.login();
+    expect(s.db.raw.prepare('SELECT display_name, unverified_email FROM sessions').get()).toEqual({
+      display_name: null,
+      unverified_email: null,
+    });
+    expect((await s.auth.authenticate(s.req(sessionId))).user).toEqual({
+      sub: 'kakao:AbC',
+      email: '',
+      provider: 'kakao',
+      authTime: T0,
+    });
+  });
+  it('0002까지만 적용해도 옵션을 끄면 기존 로그인과 인증이 동작한다', async () => {
+    const s = setup(true, '0002');
+    s.social.fetch = async () =>
+      Response.json({ id_token: await socialToken({ nickname: '표시 이름', email: 'me@test' }) });
+    const { sessionId } = await s.login();
+    expect((await s.auth.authenticate(s.req(sessionId))).user).toEqual({
+      sub: 'kakao:AbC',
+      email: '',
+      provider: 'kakao',
+      authTime: T0,
+    });
+  });
+  it.each(['createSocial', 'authenticate'] as const)(
+    '0003이 없고 켜면 %s에서 안내한다',
+    async (method) => {
+      const s = setup(true, '0002', { socialProfile: true });
+      await expect(
+        method === 'createSocial' ? s.login() : s.auth.authenticate(s.req('x'.repeat(43))),
+      ).rejects.toThrow(
+        '@sch0718/firebase-session: socialProfile 옵션을 쓰려면 migrations/firebase-session-0003_social_profile.sql을 적용해야 합니다',
+      );
+    },
+  );
+  it('Google 세션 전용 인증은 표시 열을 읽어도 사용자 객체에 더하지 않는다', async () => {
+    const s = setup(false, false, { socialProfile: true, googleSessionOnly: true });
+    const bearer = `Bearer ${await token(T0)}`;
+    const { sessionId } = await s.auth.create(s.req(undefined, bearer), {});
+    s.db.raw.exec(
+      "UPDATE sessions SET display_name = '표시 이름', unverified_email = 'unverified@test'",
+    );
+    expect((await s.auth.authenticate(s.req(sessionId))).user).toEqual({
+      sub: 'uid-me',
+      email: ME,
+      authTime: T0,
+    });
+  });
+  it('0003이 없으면 Google 세션 전용 인증도 안내하되 토큰 경로는 동작한다', async () => {
+    const s = setup(false, '0002', { socialProfile: true, googleSessionOnly: true });
+    const bearer = `Bearer ${await token(T0)}`;
+    const { sessionId } = await s.auth.create(s.req(undefined, bearer), {});
+    expect((await s.auth.authenticate(s.req(sessionId, bearer))).user).toEqual({
+      sub: 'uid-me',
+      email: ME,
+      authTime: T0,
+    });
+    await expect(s.auth.authenticate(s.req(sessionId))).rejects.toThrow(
+      'socialProfile 옵션을 쓰려면 migrations/firebase-session-0003_social_profile.sql',
+    );
+  });
+});
 
 describe('세션 전용 authenticate', () => {
   it('소셜 세션을 인증하고 touch 간격마다 연장한다', async () => {
