@@ -215,15 +215,16 @@ if (socialConfig?.kakao) {
   await beginSocialSignIn('kakao', {
     clientId: socialConfig.kakao.clientId,
     redirectUri: `${location.origin}/auth/callback`,
-    // 기존 사용자에게 닉네임·이메일 추가 동의를 요청할 때 사용합니다.
-    scope: 'openid,profile_nickname,account_email',
+    // 기존 사용자에게 닉네임 추가 동의를 요청할 때 사용합니다.
+    // 이메일 동의항목을 켠 앱만 ',account_email'을 덧붙입니다(비즈 앱에서만 설정 가능).
+    scope: 'openid,profile_nickname',
   });
 }
 ```
 
 `createSocialSession` 결과가 `kind: 'limit'`(503 `provider-unavailable`)이면 pending 값은 이미 지워졌으므로 “잠시 뒤 처음부터 다시 로그인”하도록 안내합니다.
 
-카카오는 처음 앱을 연결할 때 동의 화면을 띄웁니다. 기존 사용자에게 새로 켠 닉네임·이메일 동의를 받으려면 `beginSocialSignIn` 또는 `socialAuthorizeUrl`에 `scope: 'openid,profile_nickname,account_email'`을 넘깁니다. 이미 동의한 항목이면 동의 화면 없이 진행합니다. `scope`는 지정한 문자열을 그대로 보내며 OIDC에서는 `openid`를 포함해야 합니다. 생략하면 기존처럼 카카오는 scope를 보내지 않고 네이버는 `openid`를 보냅니다. 지정한 값은 네이버 기본 scope도 대신합니다.
+카카오는 처음 앱을 연결할 때 동의 화면을 띄웁니다. 기존 사용자에게 새로 켠 닉네임·이메일 동의를 받으려면 `beginSocialSignIn` 또는 `socialAuthorizeUrl`에 `scope: 'openid,profile_nickname'`(이메일 동의항목을 켠 앱은 `account_email` 추가)을 넘깁니다. scope의 각 항목은 콘솔 동의항목에 먼저 설정해야 하며, 아니면 KOE205(invalid_scope) 오류로 인가가 실패합니다. 이미 동의한 항목이면 동의 화면 없이 진행합니다. `scope`는 지정한 문자열을 그대로 보내며 OIDC에서는 `openid`를 포함해야 합니다. 생략하면 기존처럼 카카오는 scope를 보내지 않고 네이버는 `openid`를 보냅니다. 지정한 값은 네이버 기본 scope도 대신합니다.
 
 `beginSocialSignIn()`은 무작위 PKCE S256 verifier·state를 만들고 nonce는 `socialNonce(verifier)`로 파생합니다. 식은 `base64url(SHA-256('nonce:' + verifier))`이며 UTF-8, 패딩 없는 base64url을 씁니다. localStorage의 `@sch0718/firebase-session:social-pending`에는 `{ provider, state, verifier, redirectUri, createdAt }`만 저장하고 이동합니다. 저장소를 쓸 수 없으면 reject합니다. 한 번에 하나의 로그인만 보관하며 10분 뒤 만료됩니다. `storage`, `navigate`, `random`, `now`를 주입할 수 있고 `prompt`는 지정했을 때만 공급자에 넘깁니다. `socialAuthorizeUrl()`로 인가 URL만 만들 수도 있습니다. 이때 `/client`가 내보내는 `socialNonce(verifier): Promise<string>`로 nonce를 계산해 넘깁니다. Worker도 본문의 verifier로 nonce를 다시 계산해 토큰과 비교합니다. 성공 콜백과 `createSocialSession` 입력에는 nonce가 없으며, Worker 요청 본문에 `nonce` 키를 보내면 값과 무관하게 400 `bad-request`입니다.
 
@@ -238,7 +239,7 @@ if (socialConfig?.kakao) {
 1. 앱을 만들고 카카오 로그인 사용 설정과 OpenID Connect를 켭니다.
 2. `[앱] > [플랫폼 키] > [REST API 키]`에 Redirect URI를 등록합니다. 예: `https://서비스도메인/auth/callback`, 개발용 `http://localhost:포트/auth/callback`. 인가 요청 값과 정확히 같아야 합니다.
 3. REST API 키와 클라이언트 시크릿을 확인합니다. 시크릿이 켜져 있으면 Worker에 반드시 넣습니다.
-4. 표시 정보를 받으려면 동의 항목에서 「닉네임」·「카카오계정(이메일)」을 설정하고 사용자 동의를 받습니다. 실제 제공 값은 앱 설정과 동의 여부에 따릅니다.
+4. 표시 정보를 받으려면 동의 항목에서 「닉네임」·「카카오계정(이메일)」을 설정하고 사용자 동의를 받습니다. 이메일 항목은 비즈 앱(개인 개발자 비즈 앱 전환 가능)에서만 설정할 수 있고, 켜지 않아도 닉네임으로 이름 표시는 됩니다. 실제 제공 값은 앱 설정과 동의 여부에 따릅니다.
 
 네이버는 [네이버 개발자센터](https://developers.naver.com/apps)에서 설정합니다.
 

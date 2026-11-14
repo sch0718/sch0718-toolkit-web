@@ -117,7 +117,7 @@ describe('소셜 표시 정보', () => {
 
   it('카카오 ID 토큰의 표시 이름과 이메일을 정리한다', async () => {
     const s = profileSetup('kakao', {
-      nickname: ' \u0000\u001f\u007f\u0085\u009f\u202a\u202e\u2066\u2069별명 ',
+      nickname: ' \u0000\u001f\u007f\u0085\u009f\u061c\u200e\u200f\u202a\u202e\u2066\u2069별명 ',
       email: ' ME@EXAMPLE.TEST ',
     });
     expect((await s.login()).user).toEqual({

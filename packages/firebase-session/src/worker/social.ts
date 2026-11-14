@@ -139,8 +139,10 @@ const SOCIAL_NONCE_PREFIX = 'nonce:';
 function cleanDisplayName(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   // 표시를 흐리는 제어 문자와 양방향 제어 문자를 지운다.
-  // eslint-disable-next-line no-control-regex
-  const name = value.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, '').trim();
+  const name = value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim();
   return [...name].slice(0, 64).join('') || undefined;
 }
 
