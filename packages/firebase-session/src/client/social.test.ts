@@ -79,6 +79,21 @@ describe('소셜 인가 URL', () => {
 });
 
 describe('beginSocialSignIn', () => {
+  it.each(['kakao', 'naver'] as const)(
+    '%s에 scope를 지정하면 인가 URL에 그대로 넘긴다',
+    async (provider) => {
+      const navigate = vi.fn();
+      const scope = 'openid,profile_nickname,account_email';
+      await beginSocialSignIn(provider, {
+        clientId: 'id',
+        redirectUri,
+        scope,
+        storage: storage(null),
+        navigate,
+      });
+      expect(new URL(navigate.mock.calls[0]![0] as string).searchParams.get('scope')).toBe(scope);
+    },
+  );
   it('RFC 7636 Appendix B 벡터로 challenge를 만들고 저장 후 이동한다', async () => {
     const s = storage(null);
     const navigate = vi.fn();

@@ -27,6 +27,7 @@
     "./migrations/0001_users_sessions.sql": "./migrations/0001_users_sessions.sql",
     "./package.json": "./package.json",
     "./migrations/firebase-session-0002_social_sessions.sql": "./migrations/firebase-session-0002_social_sessions.sql",
+    "./migrations/firebase-session-0003_social_profile.sql": "./migrations/firebase-session-0003_social_profile.sql",
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
@@ -43,7 +44,7 @@
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp ../../LICENSE LICENSE",
-    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./migrations/0001_users_sessions.sql ./migrations/firebase-session-0002_social_sessions.sql"
+    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./migrations/0001_users_sessions.sql ./migrations/firebase-session-0002_social_sessions.sql ./migrations/firebase-session-0003_social_profile.sql"
   },
   "dependencies": {
     "jose": "^6.2.15"

@@ -151,7 +151,21 @@ const ctx = await sessions.authenticate(req); // 소셜 세션은 Authorization 
 
 JWKS는 기본 1시간 캐시하고, 양수 `max-age`는 10분~24시간으로 제한합니다. `no-store`·`no-cache` 지시자는 무시하고 기본 1시간을 적용하며 `max-age=0`도 같습니다. 재조회 장애 때는 만료 시각부터 최대 6시간 동안 이전 키를 쓰고, 실패를 포함한 마지막 조회 뒤 5분이 지나야 다시 조회합니다. 캐시가 없거나 6시간 stale 한도를 넘긴 뒤 조회가 실패하면 30초 동안 다시 조회하지 않고 바로 `CertsUnavailableError`를 던집니다(negative cache). 30초가 지나면 재시도하며, 성공한 뒤에는 다음 실패까지 negative cache의 영향이 없습니다. 토큰 교환·소셜 JWKS·Google 인증서 요청에는 모두 10초 제한을 둡니다.
 
-허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 항상 빈 문자열입니다. 소셜 사용자의 이메일은 식별·인가에 쓰지 않습니다. 공급자 토큰에 문자열 이메일이 있으면 `createSocial`/`createSocialSession` 결과의 `user.unverifiedEmail`로만 소문자화해 줍니다(검증되지 않은 값, 표시용). 없으면 필드 자체를 넣지 않습니다. DB에 저장하거나 `VerifiedUser`에 더하지 않습니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
+허용 목록은 `kakao:<sub>,naver:<sub>` 형식입니다. `parseAccountList()`는 접두어만 소문자로 바꾸고 ID의 대소문자는 유지합니다. 소셜 사용자 객체의 `sub`는 이 계정 값, `provider`는 `kakao` 또는 `naver`, `email`은 항상 빈 문자열입니다. 세션 인증의 `authTime`은 세션을 만든 시각입니다. Google 사용자 객체에는 `provider`를 더하지 않습니다.
+
+`createSocial`/`createSocialSession` 결과에는 값이 있을 때 `user.name`과 `user.unverifiedEmail`도 넣습니다. 카카오는 ID 토큰의 `nickname`·`email`을 사용하며 추가 호출은 없습니다. 네이버는 ID 토큰에 없는 값을 허용 판정 뒤 Worker에서 userinfo API로 한 번 보충합니다(3초 제한). 네이버 userinfo 조회가 실패해도 로그인은 성공합니다. 이름은 제어·양방향 제어 문자를 지우고 앞뒤 공백을 자른 뒤 코드 포인트 64개까지 남깁니다. 이메일은 앞뒤 공백을 자르고 소문자화하며 254자 이하, 공백·제어 문자 없음, `@` 하나인 값만 넣습니다. 정리 후 값이 없으면 해당 필드는 생략합니다. 두 값은 **검증되지 않은 표시용 정보**입니다. 계정 식별이나 권한 판단에 쓰지 마세요. 패키지도 허용 목록이나 `isAllowed`에 이 값을 넘기지 않습니다.
+
+### 표시 정보 저장(`socialProfile`)
+
+`SessionAuthOptions.socialProfile`은 기본 꺼짐입니다. 꺼져 있으면 기존 SQL 그대로 동작하므로 0003이 없는 DB도 사용할 수 있습니다. 표시 정보를 세션에 남기려면 다음 순서로 적용합니다.
+
+1. 0002 다음에 `migrations/firebase-session-0003_social_profile.sql`을 복사해 적용합니다. 세션에 `display_name`·`unverified_email` 열을 추가합니다.
+2. `createSessionAuth({ ...기존옵션, socialProfile: true })`로 저장·복원을 켭니다.
+3. 기존 세션은 값이 NULL이므로 다시 로그인합니다. 카카오 기존 사용자는 아래의 `scope`로 추가 동의도 요청합니다.
+
+켜면 새 소셜 세션에 표시 정보를 저장하고 세션 전용 `authenticate`의 `ctx.user`(`VerifiedUser`)에 `name`·`unverifiedEmail`로 복원합니다. 값은 세션을 만들 때 고정되므로 공급자에서 바꿔도 다음 로그인부터 반영됩니다. 값이 없으면 서비스에서 계정 키를 표시하면 됩니다. 세션 전용 SELECT는 Google과 공유하므로 `googleSessionOnly`도 함께 쓰면 0003이 필요하지만 Google 사용자 객체와 허용 판정은 바뀌지 않습니다. 열이 없으면 `@sch0718/firebase-session: socialProfile 옵션을 쓰려면 migrations/firebase-session-0003_social_profile.sql을 적용해야 합니다` 오류를 던집니다.
+
+문제가 생기면 `socialProfile`만 끄면 됩니다. 추가한 열은 그대로 두어도 됩니다. 옵션은 저장·복원만 제어하므로 네이버 userinfo 호출과 로그인 응답의 표시 정보는 옵션과 무관합니다. userinfo는 Worker가 호출하므로 브라우저 CSP에 공급자 주소를 추가할 필요는 없습니다.
 
 ### Google 세션 전용 인증(`googleSessionOnly`)
 
@@ -201,11 +215,16 @@ if (socialConfig?.kakao) {
   await beginSocialSignIn('kakao', {
     clientId: socialConfig.kakao.clientId,
     redirectUri: `${location.origin}/auth/callback`,
+    // 기존 사용자에게 닉네임 추가 동의를 요청할 때 사용합니다.
+    // 이메일 동의항목을 켠 앱만 ',account_email'을 덧붙입니다(비즈 앱에서만 설정 가능).
+    scope: 'openid,profile_nickname',
   });
 }
 ```
 
 `createSocialSession` 결과가 `kind: 'limit'`(503 `provider-unavailable`)이면 pending 값은 이미 지워졌으므로 “잠시 뒤 처음부터 다시 로그인”하도록 안내합니다.
+
+카카오는 처음 앱을 연결할 때 동의 화면을 띄웁니다. 기존 사용자에게 새로 켠 닉네임·이메일 동의를 받으려면 `beginSocialSignIn` 또는 `socialAuthorizeUrl`에 `scope: 'openid,profile_nickname'`(이메일 동의항목을 켠 앱은 `account_email` 추가)을 넘깁니다. scope의 각 항목은 콘솔 동의항목에 먼저 설정해야 하며, 아니면 KOE205(invalid_scope) 오류로 인가가 실패합니다. 이미 동의한 항목이면 동의 화면 없이 진행합니다. `scope`는 지정한 문자열을 그대로 보내며 OIDC에서는 `openid`를 포함해야 합니다. 생략하면 기존처럼 카카오는 scope를 보내지 않고 네이버는 `openid`를 보냅니다. 지정한 값은 네이버 기본 scope도 대신합니다.
 
 `beginSocialSignIn()`은 무작위 PKCE S256 verifier·state를 만들고 nonce는 `socialNonce(verifier)`로 파생합니다. 식은 `base64url(SHA-256('nonce:' + verifier))`이며 UTF-8, 패딩 없는 base64url을 씁니다. localStorage의 `@sch0718/firebase-session:social-pending`에는 `{ provider, state, verifier, redirectUri, createdAt }`만 저장하고 이동합니다. 저장소를 쓸 수 없으면 reject합니다. 한 번에 하나의 로그인만 보관하며 10분 뒤 만료됩니다. `storage`, `navigate`, `random`, `now`를 주입할 수 있고 `prompt`는 지정했을 때만 공급자에 넘깁니다. `socialAuthorizeUrl()`로 인가 URL만 만들 수도 있습니다. 이때 `/client`가 내보내는 `socialNonce(verifier): Promise<string>`로 nonce를 계산해 넘깁니다. Worker도 본문의 verifier로 nonce를 다시 계산해 토큰과 비교합니다. 성공 콜백과 `createSocialSession` 입력에는 nonce가 없으며, Worker 요청 본문에 `nonce` 키를 보내면 값과 무관하게 400 `bad-request`입니다.
 
@@ -219,7 +238,8 @@ if (socialConfig?.kakao) {
 
 1. 앱을 만들고 카카오 로그인 사용 설정과 OpenID Connect를 켭니다.
 2. `[앱] > [플랫폼 키] > [REST API 키]`에 Redirect URI를 등록합니다. 예: `https://서비스도메인/auth/callback`, 개발용 `http://localhost:포트/auth/callback`. 인가 요청 값과 정확히 같아야 합니다.
-3. REST API 키와 클라이언트 시크릿을 확인합니다. 시크릿이 켜져 있으면 Worker에 반드시 넣습니다. 이메일 동의는 필요하지 않으므로 비즈 앱으로 전환하지 않아도 됩니다.
+3. REST API 키와 클라이언트 시크릿을 확인합니다. 시크릿이 켜져 있으면 Worker에 반드시 넣습니다.
+4. 표시 정보를 받으려면 동의 항목에서 「닉네임」·「카카오계정(이메일)」을 설정하고 사용자 동의를 받습니다. 이메일 항목은 비즈 앱(개인 개발자 비즈 앱 전환 가능)에서만 설정할 수 있고, 켜지 않아도 닉네임으로 이름 표시는 됩니다. 실제 제공 값은 앱 설정과 동의 여부에 따릅니다.
 
 네이버는 [네이버 개발자센터](https://developers.naver.com/apps)에서 설정합니다.
 
@@ -227,6 +247,7 @@ if (socialConfig?.kakao) {
 2. 이 패키지는 OIDC `/oauth2/*` 경로를 씁니다. 별도 OIDC 스위치가 필요한지는 실제 앱에서 확인해야 합니다.
 3. '개발 중'에는 멤버관리에 로그인할 아이디를 관리자·테스터로 등록합니다. 모든 아이디에 열려면 사전 검수가 필요합니다.
 4. Client ID와 Client Secret을 확인합니다.
+5. 표시 정보를 받으려면 「제공 정보」에서 「별명」 또는 「회원이름」·「이메일 주소」를 선택하고 사용자 동의를 받습니다.
 
 | 값                       | Worker secret 예시    | 앱 빌드 변수                 | 취급      |
 | ------------------------ | --------------------- | ---------------------------- | --------- |

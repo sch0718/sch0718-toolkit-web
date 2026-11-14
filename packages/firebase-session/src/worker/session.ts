@@ -48,6 +48,8 @@ export interface DeviceSessionRow {
 export interface SessionAuthOptions {
   db: D1Database;
   social?: SocialLoginOptions | undefined;
+  /** 소셜 표시 정보를 저장·복원한다. 기본 꺼짐. 0003 마이그레이션이 필요하다. */
+  socialProfile?: boolean;
   /**
    * 켜면 Google 세션도 ID 토큰 없이 세션만으로 인증한다(create가 identity에 소문자 이메일을 넣는다).
    * 허용 목록은 매 요청 다시 확인한다. 0002 마이그레이션이 필요하다.
@@ -86,7 +88,13 @@ export interface SessionAuth {
   ): Promise<{
     sessionId: string;
     expiresAt: number;
-    user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string };
+    user: {
+      sub: string;
+      email: string;
+      provider: SocialProvider;
+      name?: string;
+      unverifiedEmail?: string;
+    };
   }>;
   /** 토큰 검증 + 허용 목록. 실패는 HttpError(401·403)로 바꾼다. */
   verifiedUser(req: Request): Promise<VerifiedUser>;
@@ -108,20 +116,27 @@ export function cleanLabel(v: unknown, fallback: string): string {
   return [...s].slice(0, LABEL_MAX).join('') || fallback;
 }
 
-async function socialQuery<T>(enabled: boolean, query: () => Promise<T>): Promise<T> {
+async function socialQuery<T>(
+  enabled: boolean,
+  query: () => Promise<T>,
+  profile = false,
+): Promise<T> {
   try {
     return await query();
   } catch (e) {
-    if (
-      enabled &&
-      e instanceof Error &&
-      /no such column|has no column named/i.test(e.message) &&
-      /identity/i.test(e.message)
-    )
-      throw new Error(
-        '@sch0718/firebase-session: social 옵션을 쓰려면 migrations/firebase-session-0002_social_sessions.sql을 적용해야 합니다',
-        { cause: e },
-      );
+    if (e instanceof Error && /no such column|has no column named/i.test(e.message)) {
+      const [file, opt] =
+        profile && /display_name|unverified_email/i.test(e.message)
+          ? ['0003_social_profile', 'socialProfile']
+          : enabled && /identity/i.test(e.message)
+            ? ['0002_social_sessions', 'social']
+            : [];
+      if (file)
+        throw new Error(
+          `@sch0718/firebase-session: ${opt} 옵션을 쓰려면 migrations/firebase-session-${file}.sql을 적용해야 합니다`,
+          { cause: e },
+        );
+    }
     throw e;
   }
 }
@@ -156,7 +171,7 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
   }
 
   async function saveSession(
-    user: { sub: string; email: string },
+    user: Pick<VerifiedUser, 'sub' | 'email' | 'provider' | 'name' | 'unverifiedEmail'>,
     label: string,
     now: number,
     identity?: string,
@@ -171,22 +186,26 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       .first<{ id: string }>();
     if (!row) throw new Error('users upsert returned no row');
     const sessionId = base64url(o.random(32));
-    await socialQuery(identity !== undefined, async () =>
-      o.db
-        .prepare(
-          identity === undefined
-            ? 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)'
-            : 'INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at, identity) VALUES (?, ?, ?, ?, ?, ?)',
-        )
-        .bind(
-          await sha256Hex(sessionId),
-          row.id,
-          label,
-          now,
-          now,
-          ...(identity === undefined ? [] : [identity]),
-        )
-        .run(),
+    const profile = !!(o.socialProfile && user.provider);
+    const id = identity !== undefined;
+    await socialQuery(
+      id,
+      async () =>
+        o.db
+          .prepare(
+            `INSERT INTO sessions (id_hash, user_id, label, created_at, last_used_at${id ? ', identity' : ''}${profile ? ', display_name, unverified_email' : ''}) VALUES (?, ?, ?, ?, ?${id ? ', ?' : ''}${profile ? ', ?, ?' : ''})`,
+          )
+          .bind(
+            await sha256Hex(sessionId),
+            row.id,
+            label,
+            now,
+            now,
+            ...(id ? [identity] : []),
+            ...(profile ? [user.name ?? null, user.unverifiedEmail ?? null] : []),
+          )
+          .run(),
+      profile,
     );
     return { sessionId, expiresAt: now + SESSION_TTL };
   }
@@ -232,26 +251,32 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
       if (!raw || !/^[A-Za-z0-9_-]{43}$/.test(raw))
         throw new HttpError(401, sessionOnly ? 'missing-token' : 'no-session');
       const hash = await sha256Hex(raw);
-      const row = await socialQuery(sessionOnly, () =>
-        o.db
-          .prepare(
-            sessionOnly
-              ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
-           s.identity, s.created_at AS createdAt, u.firebase_sub AS sub
+      const profile = sessionOnly && !!o.socialProfile;
+      const row = await socialQuery(
+        sessionOnly,
+        () =>
+          o.db
+            .prepare(
+              sessionOnly
+                ? `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt,
+           s.identity, s.created_at AS createdAt, u.firebase_sub AS sub${profile ? ', s.display_name, s.unverified_email' : ''}
            FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = ?`
-              : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
+                : `SELECT s.user_id AS userId, s.last_used_at AS lastUsedAt, s.revoked_at AS revokedAt
            FROM sessions s JOIN users u ON u.id = s.user_id
            WHERE s.id_hash = ? AND u.firebase_sub = ?`,
-          )
-          .bind(hash, ...(user ? [user.sub] : []))
-          .first<{
-            userId: string;
-            lastUsedAt: number;
-            revokedAt: number | null;
-            identity: string | null;
-            createdAt: number;
-            sub: string;
-          }>(),
+            )
+            .bind(hash, ...(user ? [user.sub] : []))
+            .first<{
+              userId: string;
+              lastUsedAt: number;
+              revokedAt: number | null;
+              identity: string | null;
+              createdAt: number;
+              sub: string;
+              display_name?: string | null;
+              unverified_email?: string | null;
+            }>(),
+        profile,
       );
       if (!row) throw new HttpError(401, 'no-session');
       // 이메일 identity(Google)는 googleSessionOnly일 때만, kakao:·naver:는 social이 있을 때만 세션 전용으로 받는다
@@ -273,7 +298,14 @@ export function createSessionAuth(o: SessionAuthOptions): SessionAuth {
           throw new HttpError(403, 'not-allowed');
         user = social
           ? // 소셜 사용자의 email은 DB 값과 무관하게 항상 ''
-            { sub: id, email: '', authTime: row.createdAt, provider: social }
+            {
+              sub: id,
+              email: '',
+              authTime: row.createdAt,
+              provider: social,
+              ...(row.display_name && { name: row.display_name }),
+              ...(row.unverified_email && { unverifiedEmail: row.unverified_email }),
+            }
           : { sub: row.sub, email: id, authTime: row.createdAt };
       }
       if (now - row.lastUsedAt >= TOUCH_INTERVAL) {

@@ -87,7 +87,13 @@ export interface SessionClient<X extends Fail = never> {
       {
         sessionId: string;
         expiresAt: number;
-        user: { sub: string; email: string; provider: SocialProvider; unverifiedEmail?: string };
+        user: {
+          sub: string;
+          email: string;
+          provider: SocialProvider;
+          name?: string;
+          unverifiedEmail?: string;
+        };
       },
       BaseFail | X
     >

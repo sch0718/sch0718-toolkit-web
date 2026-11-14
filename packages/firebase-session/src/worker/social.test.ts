@@ -18,6 +18,8 @@ import {
   socialLoginOptions,
   SOCIAL_PROVIDERS,
   socialKeys,
+  exchangeSocial,
+  type SocialProvider,
   type SocialLoginOptions,
 } from './social.js';
 
@@ -82,6 +84,157 @@ const fails = async (p: Promise<unknown>, status: number, code: string, extra = 
   for (const value of ['test-secret', socialBody.code, socialBody.codeVerifier, ...issuedTokens])
     expect(details).not.toContain(value);
 };
+
+describe('소셜 표시 정보', () => {
+  function profileSetup(provider: SocialProvider, claims: Record<string, unknown> = {}) {
+    const userinfo = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        resultcode: '00',
+        response: { nickname: '네이버 별명', email: ' ME@TEST ' },
+      }),
+    );
+    const f = vi.fn<typeof fetch>(async (url, init) => {
+      if (url === 'https://openapi.naver.com/v1/nid/me') return userinfo(url, init);
+      return Response.json({
+        id_token: await socialToken({
+          iss: SOCIAL_PROVIDERS[provider].issuer,
+          email: undefined,
+          ...claims,
+        }),
+        ...(provider === 'naver' && { access_token: 'access-token' }),
+      });
+    });
+    const options: SocialLoginOptions = {
+      allowedAccounts: `${provider}:AbC`,
+      [provider]: { clientId: CLIENT_ID },
+      keys: { kakao: certs, naver: certs },
+      fetch: f,
+    };
+    const login = (isAllowed?: Parameters<typeof exchangeSocial>[4]) =>
+      exchangeSocial({ ...socialBody, provider }, options, T0, 300_000, isAllowed);
+    return { userinfo, f, options, login };
+  }
+
+  it('카카오 ID 토큰의 표시 이름과 이메일을 정리한다', async () => {
+    const s = profileSetup('kakao', {
+      nickname: ' \u0000\u001f\u007f\u0085\u009f\u061c\u200e\u200f\u202a\u202e\u2066\u2069별명 ',
+      email: ' ME@EXAMPLE.TEST ',
+    });
+    expect((await s.login()).user).toEqual({
+      sub: 'kakao:AbC',
+      email: '',
+      provider: 'kakao',
+      name: '별명',
+      unverifiedEmail: 'me@example.test',
+    });
+    expect(s.f).toHaveBeenCalledTimes(1);
+  });
+  it('이름은 코드 포인트 64개까지만 남긴다', async () => {
+    const s = profileSetup('kakao', { nickname: '😀'.repeat(65) });
+    expect((await s.login()).user.name).toBe('😀'.repeat(64));
+  });
+  it.each([undefined, 42, ' \t\u202a '])(
+    '빈 이름이나 문자열이 아닌 이름 %j는 넣지 않는다',
+    async (nickname) => {
+      expect((await profileSetup('kakao', { nickname }).login()).user).not.toHaveProperty('name');
+    },
+  );
+  it.each(['a b@test', 'a@b@test', 'a'.repeat(253) + '@b', 'a\u0085@test', 'no-at', 42])(
+    '잘못된 표시 이메일 %j는 넣지 않는다',
+    async (email) => {
+      expect((await profileSetup('kakao', { email }).login()).user).not.toHaveProperty(
+        'unverifiedEmail',
+      );
+    },
+  );
+  it('네이버는 허용 판정 뒤 Bearer와 제한 신호로 한 번만 조회한다', async () => {
+    const s = profileSetup('naver');
+    s.options.allowedAccounts = '';
+    const isAllowed = vi.fn<NonNullable<Parameters<typeof exchangeSocial>[4]>>(() => {
+      expect(s.userinfo).not.toHaveBeenCalled();
+      return true;
+    });
+    expect((await s.login(isAllowed)).user).toEqual({
+      sub: 'naver:AbC',
+      email: '',
+      provider: 'naver',
+      name: '네이버 별명',
+      unverifiedEmail: 'me@test',
+    });
+    expect(isAllowed.mock.calls).toEqual([['naver:AbC', 'naver']]);
+    expect(s.userinfo).toHaveBeenCalledExactlyOnceWith('https://openapi.naver.com/v1/nid/me', {
+      headers: { Authorization: 'Bearer access-token' },
+      signal: expect.any(AbortSignal),
+    });
+    expect(s.f).toHaveBeenCalledTimes(2);
+  });
+  it('네이버 회원이름으로 보충하되 토큰에 있던 표시값은 덮어쓰지 않는다', async () => {
+    const s = profileSetup('naver', { email: 'token@test' });
+    s.userinfo.mockResolvedValue(
+      Response.json({ resultcode: '00', response: { name: '회원이름', email: 'other@test' } }),
+    );
+    expect((await s.login()).user).toMatchObject({
+      name: '회원이름',
+      unverifiedEmail: 'token@test',
+    });
+    const named = profileSetup('naver', { nickname: '토큰 별명' });
+    expect((await named.login()).user).toMatchObject({
+      name: '토큰 별명',
+      unverifiedEmail: 'me@test',
+    });
+  });
+  it.each(['network', '500', 'json', 'resultcode', 'null', 'array', 'fields'])(
+    '네이버 userinfo 실패 %s는 로그인에 영향을 주지 않는다',
+    async (mode) => {
+      const s = profileSetup('naver');
+      s.userinfo.mockImplementation(async () => {
+        if (mode === 'network') throw new Error('access-token');
+        if (mode === '500') return new Response('access-token', { status: 500 });
+        if (mode === 'json') return new Response('access-token');
+        return Response.json(
+          mode === 'null'
+            ? null
+            : {
+                resultcode: mode === 'resultcode' ? '01' : '00',
+                response:
+                  mode === 'array'
+                    ? []
+                    : mode === 'fields'
+                      ? { nickname: 42, email: 'bad' }
+                      : { nickname: '별명' },
+              },
+        );
+      });
+      expect((await s.login()).user).toEqual({ sub: 'naver:AbC', email: '', provider: 'naver' });
+      expect(s.userinfo).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each([undefined, 42])(
+    'access_token이 문자열이 아니면 조회하지 않는다: %j',
+    async (access_token) => {
+      const s = profileSetup('naver');
+      s.f.mockResolvedValueOnce(
+        Response.json({
+          id_token: await socialToken({ iss: SOCIAL_PROVIDERS.naver.issuer }),
+          access_token,
+        }),
+      );
+      expect((await s.login()).user).not.toHaveProperty('name');
+      expect(s.userinfo).not.toHaveBeenCalled();
+    },
+  );
+  it('두 표시값이 이미 있으면 조회하지 않는다', async () => {
+    const s = profileSetup('naver', { nickname: '별명', email: 'me@test' });
+    await s.login();
+    expect(s.userinfo).not.toHaveBeenCalled();
+  });
+  it('허용되지 않은 네이버 계정은 조회하지 않는다', async () => {
+    const s = profileSetup('naver');
+    s.options.allowedAccounts = '';
+    await fails(s.login(), 403, 'not-allowed', { account: 'naver:AbC' });
+    expect(s.userinfo).not.toHaveBeenCalled();
+  });
+});
 
 describe('소셜 설정', () => {
   it('공급자 접두어만 소문자화하고 ID 대소문자는 유지한다', () => {
