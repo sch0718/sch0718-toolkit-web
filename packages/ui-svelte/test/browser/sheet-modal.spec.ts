@@ -50,7 +50,15 @@ test('Chromium 접근성 트리는 맨 위 시트와 스낵바만 담고 닫으�
   await expect.poll(names).toContain('A 입력');
   await expect(a.getByRole('button', { name: '시트 B 열기', exact: true })).toBeFocused();
 
-  await a.getByRole('button', { name: '닫기', exact: true }).click();
+  await expect(page.locator('.root')).toHaveCount(1);
+  // 실제 브라우저에서는 닫힘 애니메이션을 감지해 끝날 때까지 남긴다(jsdom처럼 바로 내리지 않는다).
+  const closingAfterFrame = await a.evaluate(async (dialog) => {
+    dialog.querySelector<HTMLElement>('[data-sheet-close]')!.click();
+    await new Promise(requestAnimationFrame);
+    return document.querySelectorAll('.root.closing').length;
+  });
+  expect(closingAfterFrame).toBe(1);
+  await expect(page.locator('.root')).toHaveCount(0);
   await expect.poll(names).toContain('배경 단추');
   await expect(page.getByRole('button', { name: '시트 A 열기', exact: true })).toBeFocused();
   await session.detach();
