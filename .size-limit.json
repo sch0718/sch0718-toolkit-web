@@ -12,6 +12,12 @@
     "limit": "600 B"
   },
   {
+    "name": "@sch0718/app-update watchVersion",
+    "path": "packages/app-update/dist/index.js",
+    "import": "{ watchVersion }",
+    "limit": "560 B"
+  },
+  {
     "name": "@sch0718/firebase-session/client",
     "path": "packages/firebase-session/dist/client/index.js",
     "import": "{ createSessionClient, firebaseAuth, readSyncConfig }",

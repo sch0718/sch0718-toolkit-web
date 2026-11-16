@@ -59,4 +59,26 @@ export default { plugins: [devCsp()] };
 
 `index.html`의 CSP에 `connect-src 'self' https:`가 그대로 들어 있어야 합니다. 없으면 조용히 넘어가지 않고 오류로 멈춥니다.
 
+## 앱 버전 id (`appVersion`)
+
+```ts
+// vite.config.ts
+import { appVersion } from '@sch0718/vite-app/app-version';
+
+export default { plugins: [appVersion()] };
+```
+
+```ts
+// src/vite-env.d.ts
+interface ImportMetaEnv {
+  readonly APP_VERSION: string;
+}
+```
+
+- 빌드할 때 id를 정해 앱 코드의 `import.meta.env.APP_VERSION`에 넣고, 배포 루트에 `version.json`(`{"version":"<id>"}`)을 냅니다. `@sch0718/app-update`의 `watchVersion`이 이 둘을 비교해 새 배포를 알아챕니다.
+- id는 `appVersion({ version })` → 빌드 환경의 커밋 SHA(`CF_PAGES_COMMIT_SHA`·`WORKERS_CI_COMMIT_SHA`·`GITHUB_SHA`) → `git rev-parse HEAD` → 빌드 시각 순서로 정합니다. 같은 커밋을 다시 빌드하면 id가 같아 「새 버전」으로 보지 않습니다.
+- 개발 서버에서는 `'dev'`이고 `version.json`을 내지 않습니다. `watchVersion`은 `import.meta.env.PROD`일 때만 켭니다.
+- 서브경로로 둔 이유: 루트 진입점의 선언 파일은 `vite-plugin-pwa` 타입을 참조합니다. PWA를 쓰지 않는 서비스도 타입 검사가 깨지지 않게 따로 뒀습니다(`vite-plugin-pwa`는 선택 peer 의존성).
+- 타입은 `define`으로 넣은 값이라 서비스가 `ImportMetaEnv`에 한 줄 선언합니다. 가상 모듈보다 코드가 적고 시험(Vitest)에서도 `import.meta.env`로 바로 덮어쓸 수 있습니다.
+
 라이선스: [PolyForm Noncommercial 1.0.0](./LICENSE)

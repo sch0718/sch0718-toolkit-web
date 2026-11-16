@@ -4,6 +4,8 @@
   "description": "랜드마크 조건: Yarn 1, TypeScript 6",
   "packageManager": "yarn@1.22.22",
   "devDependencies": {
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vite": "8.3.2",
+    "@types/node": "26.6.5"
   }
 }

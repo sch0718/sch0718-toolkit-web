@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { watchAppUpdate, type AppUpdateDocument, type AppUpdateServiceWorker } from './watch.js';
+import type { AppUpdateDocument } from './gate.js';
+import { watchAppUpdate, type AppUpdateServiceWorker } from './watch.js';
 
-function setup(o: { controlled?: boolean; active?: boolean; autoReloadMs?: number } = {}) {
+function setup(
+  o: {
+    controlled?: boolean;
+    active?: boolean;
+    autoReloadMs?: number;
+    canAutoReload?: () => boolean;
+  } = {},
+) {
   let t = 1000;
   const update = vi.fn(async () => {});
   const sw = Object.assign(new EventTarget(), {
@@ -20,6 +28,7 @@ function setup(o: { controlled?: boolean; active?: boolean; autoReloadMs?: numbe
     serviceWorker: sw as unknown as AppUpdateServiceWorker,
     document: doc as unknown as AppUpdateDocument,
     ...(o.autoReloadMs === undefined ? {} : { autoReloadMs: o.autoReloadMs }),
+    ...(o.canAutoReload ? { canAutoReload: o.canAutoReload } : {}),
   });
   const swap = async () => {
     sw.controller = {} as ServiceWorker;
@@ -69,6 +78,13 @@ describe('watchAppUpdate', () => {
   it('autoReloadMs 0이면 늘 안내만 한다', async () => {
     const s = setup({ autoReloadMs: 0 });
     s.advance(1);
+    await s.swap();
+    expect(s.reload).not.toHaveBeenCalled();
+    expect(s.onUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('canAutoReload가 false면 접속 직후라도 안내만 한다', async () => {
+    const s = setup({ canAutoReload: () => false });
     await s.swap();
     expect(s.reload).not.toHaveBeenCalled();
     expect(s.onUpdate).toHaveBeenCalledOnce();

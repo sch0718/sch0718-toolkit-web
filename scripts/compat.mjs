@@ -17,7 +17,13 @@ const root = resolve(import.meta.dirname, '..');
 const packsDir = join(root, '.packs');
 const run = (cmd, args, cwd) =>
   execFileSync(cmd, args, { cwd, stdio: 'inherit', env: corepackEnv });
-const corepackEnv = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
+// Yarn 1은 file: tarball을 이름·버전으로 캐시해, 버전을 올리지 않은 패키지의 바뀐 내용을 보지 못한다. 매번 빈 캐시를 쓴다.
+const yarnCache = mkdtempSync(join(tmpdir(), 'toolkit-compat-yarn-'));
+const corepackEnv = {
+  ...process.env,
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+  YARN_CACHE_FOLDER: yarnCache,
+};
 
 rmSync(packsDir, { recursive: true, force: true });
 mkdirSync(packsDir);
@@ -39,23 +45,29 @@ const wanted = process.argv.slice(2);
 const fixtures = readdirSync(join(root, 'fixtures')).filter(
   (f) => !wanted.length || wanted.includes(f),
 );
-for (const fixture of fixtures) {
-  console.log(`\n== ${fixture}`);
-  const dir = join(base, fixture);
-  cpSync(join(root, 'fixtures', fixture), dir, { recursive: true });
-  const pkgPath = join(dir, 'package.json');
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  pkg.dependencies = Object.fromEntries(Object.entries(tarballs).map(([n, f]) => [n, `file:${f}`]));
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-  const manager = pkg.packageManager.split('@')[0];
-  run(
-    'corepack',
-    manager === 'yarn' ? ['yarn', 'install', '--no-lockfile'] : [manager, 'install'],
-    dir,
-  );
-  // fixture에 check 스크립트가 있으면(예: tsc + svelte-check) 그것을, 없으면 tsc만 돌린다.
-  if (pkg.scripts?.check) run('corepack', [manager, 'run', 'check'], dir);
-  else run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
+try {
+  for (const fixture of fixtures) {
+    console.log(`\n== ${fixture}`);
+    const dir = join(base, fixture);
+    cpSync(join(root, 'fixtures', fixture), dir, { recursive: true });
+    const pkgPath = join(dir, 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    pkg.dependencies = Object.fromEntries(
+      Object.entries(tarballs).map(([n, f]) => [n, `file:${f}`]),
+    );
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+    const manager = pkg.packageManager.split('@')[0];
+    run(
+      'corepack',
+      manager === 'yarn' ? ['yarn', 'install', '--no-lockfile'] : [manager, 'install'],
+      dir,
+    );
+    // fixture에 check 스크립트가 있으면(예: tsc + svelte-check) 그것을, 없으면 tsc만 돌린다.
+    if (pkg.scripts?.check) run('corepack', [manager, 'run', 'check'], dir);
+    else run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
+  }
+} finally {
+  rmSync(base, { recursive: true, force: true });
+  rmSync(yarnCache, { recursive: true, force: true });
 }
-rmSync(base, { recursive: true, force: true });
 console.log(`\n호환 시험 통과: ${fixtures.join(', ')}`);
