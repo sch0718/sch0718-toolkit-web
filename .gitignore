@@ -6,3 +6,5 @@ packages/*/LICENSE
 .compat/
 *.tgz
 .DS_Store
+test-results/
+playwright-report/

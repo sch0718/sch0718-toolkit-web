@@ -15,14 +15,27 @@
     onrelease?: () => void;
   } = $props();
 
+  let focused = false;
+  $effect(() => () => {
+    if (focused) onrelease?.();
+  });
+
+  function onfocusin() {
+    focused = true;
+    onhold?.();
+  }
+
   function onfocusout(e: FocusEvent) {
     const next = e.relatedTarget as Node | null;
-    if (!next || !(e.currentTarget as HTMLElement).contains(next)) onrelease?.();
+    if (!next || !(e.currentTarget as HTMLElement).contains(next)) {
+      focused = false;
+      onrelease?.();
+    }
   }
 </script>
 
-<!-- 시트가 열려 있으면 Sheet가 data-snackbar-action을 Tab 순환의 끝에 넣는다. -->
-<div class="snack" onfocusin={() => onhold?.()} {onfocusout}>
+<!-- 시트 안에서는 본문 뒤에 놓여 기본 Tab 순환에 함께 들어간다. -->
+<div class="snack" {onfocusin} {onfocusout}>
   <span>{message}</span>
   {#if actionLabel}
     <button type="button" data-snackbar-action onclick={() => onaction?.()}>{actionLabel}</button>

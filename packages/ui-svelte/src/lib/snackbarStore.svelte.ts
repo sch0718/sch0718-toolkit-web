@@ -11,6 +11,9 @@ export type SnackbarItem = { id: number; message: string; action?: SnackbarActio
 let current = $state<SnackbarItem | null>(null);
 let timer: ReturnType<typeof setTimeout> | undefined;
 let seq = 0;
+// 현재 스낵바만 기록해 지난 id가 쌓이지 않게 한다.
+let claimed: { id: number; owner: object } | undefined;
+
 // 포커스가 스낵바 안에 있는 동안 타이머를 멈춘다. 멈출 때 남은 시간을 재 두고, 놓으면 그 남은 시간만큼 다시 흐른다.
 let deadline = 0;
 let remaining = 0;
@@ -21,6 +24,30 @@ let unwatch: (() => void) | undefined;
 function stopWatching(): void {
   unwatch?.();
   unwatch = undefined;
+}
+
+let hosts = $state(0);
+
+/** SnackbarHost가 붙어 있는 동안 센다. 호스트가 없는 앱(스낵바를 쓰지 않음)은 시트 안에도 알림 영역을 두지 않는다. */
+export function registerSnackbarHost(): () => void {
+  hosts++;
+  return () => {
+    hosts--;
+  };
+}
+
+export function snackbarHostMounted(): boolean {
+  return hosts > 0;
+}
+
+/** 영역이 이 알림을 한 프레임 이상 라이브 영역에 보였다고 기록한다(그 영역이 알렸다고 본다). */
+export function claimSnackbar(id: number, owner: object): void {
+  if (claimed?.id !== id) claimed = { id, owner };
+}
+
+/** 다른 영역이 이미 알린 알림이면 true. 같은 알림을 영역을 옮겨 그릴 때 다시 읽히지 않게 한다. */
+export function snackbarClaimedElsewhere(id: number, owner: object): boolean {
+  return claimed?.id === id && claimed.owner !== owner;
 }
 
 /** 렌더링용 현재 스낵바(없으면 null). */

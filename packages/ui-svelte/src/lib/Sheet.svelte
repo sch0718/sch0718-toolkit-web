@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { untrack, type Snippet } from 'svelte';
+  import { tick, untrack, type Snippet } from 'svelte';
+  import SnackbarRegion from './SnackbarRegion.svelte';
+  import { snackbarHostMounted } from './snackbarStore.svelte.js';
+  import { isTopSheet, popSheet, pushSheet, sheetCovered, sheetDepth, sheetOpen } from './sheetStack.svelte.js';
 
   let {
     open,
@@ -22,8 +25,15 @@
     closeLabel?: string;
   } = $props();
 
+  const isOpen = $derived(open);
   const titleId = `sheet-title-${Math.random().toString(36).slice(2, 9)}`;
   const SWIPE_CLOSE_PX = 80;
+  // 빠르게 튕겨 내리면 80px에 못 미쳐도 닫는다. 최근 100ms 동안의 평균 속도로 본다.
+  const FLING_PX_PER_MS = 0.5;
+  const FLING_MIN_PX = 20;
+  const FLING_WINDOW_MS = 100;
+  // 닫힘 애니메이션의 animationend가 오지 않을 때(애니메이션 없음, jsdom 등) 내리는 시한.
+  const CLOSE_FALLBACK_MS = 400;
   // tabindex="-1"은 Tab으로 닿지 않으므로 모든 선택자에서 제외한다(Segmented의 roving tabindex 등).
   const FOCUSABLE = [
     'a[href]',
@@ -38,10 +48,10 @@
     .map((sel) => `${sel}:not([tabindex="-1"])`)
     .join(', ');
 
-  /** 대화상자 안에서 보이지 않는 요소(hidden 속성, display:none, visibility:hidden)는 건너뛴다. */
+  /** 대화상자 안에서 숨겨졌거나 inert인 요소는 건너뛴다. */
   function isHidden(el: HTMLElement): boolean {
     for (let n: HTMLElement | null = el; n && n !== dialogEl; n = n.parentElement) {
-      if (n.hidden) return true;
+      if (n.hidden || n.inert) return true;
       const cs = getComputedStyle(n);
       if (cs.display === 'none' || cs.visibility === 'hidden') return true;
     }
@@ -49,8 +59,45 @@
   }
 
   let dialogEl = $state<HTMLElement>();
+  let sheetEl = $state<HTMLElement>();
+  let entry = $state.raw<ReturnType<typeof pushSheet>>();
+  const isTop = $derived(isTopSheet(entry));
+  const covered = $derived(sheetCovered(entry));
+  const depth = $derived(sheetDepth(entry));
   let dragStartY: number | null = null;
   let dragY = $state(0);
+  let samples: { y: number; t: number }[] = [];
+
+  // open이 false가 된 뒤에도 닫힘 애니메이션이 끝날 때까지 DOM에 남겨 둔다.
+  // 그동안은 inert·aria-hidden이라 누를 수 없고 접근성 트리에서도 빠진다.
+  let closing = $state(false);
+  let wasOpen = false;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect.pre(() => {
+    if (open) {
+      closing = false;
+      dragY = 0; // 끌어서 닫는 도중 다시 열었으면 끌던 자리를 지운다.
+      clearTimeout(closeTimer);
+    } else if (wasOpen) {
+      closing = true;
+      closeTimer = setTimeout(finishClose, CLOSE_FALLBACK_MS);
+    }
+    wasOpen = open;
+  });
+  $effect(() => () => clearTimeout(closeTimer));
+
+  function finishClose() {
+    clearTimeout(closeTimer);
+    closing = false;
+    dragY = 0;
+  }
+  // 닫힘 애니메이션이 돌지 않으면(jsdom처럼 애니메이션이 없는 환경, 앱이 animation을 끈 경우) 기다리지 않고 바로 내린다.
+  $effect(() => {
+    if (closing && sheetEl && !sheetEl.getAnimations?.().length) untrack(finishClose);
+  });
+  function onanimationend(e: AnimationEvent) {
+    if (closing && e.target === e.currentTarget) finishClose();
+  }
 
   // :disabled는 자기 disabled 속성 말고도 <fieldset disabled> 안의 컨트롤(첫 legend 안은 빼고)까지 잡는다.
   // 이런 컨트롤은 focus()가 되지 않아 순환의 끝으로 고르면 포커스가 멈춘다.
@@ -79,33 +126,36 @@
     return els.filter((el) => !namedRadio(el) || stop.get(el.name) === el);
   }
 
-  /** 시트 밖(SnackbarHost)에 떠 있는 스낵바 동작 버튼. 시트가 열려 있는 동안 Tab 순환의 끝에 넣는다. */
-  function snackbarAction(): HTMLElement | null {
-    return document.querySelector<HTMLElement>('[data-snackbar-action]');
-  }
-
-  // 열릴 때: 이전 포커스를 기억하고 첫 요소(data-autofocus 우선)로 이동. 닫힐 때: 복원.
-  // 스크롤도 함께 잠근다.
+  // 열릴 때 스택에 넣고 첫 요소(data-autofocus 우선)로 이동. 닫힐 때 배경을 푼 뒤 포커스를 복원한다.
   $effect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     // dialogEl은 이 시점에 이미 바인딩돼 있다. 의존성으로 잡으면 포커스가 다시 움직이므로 untrack.
     return untrack(() => {
       const previous = document.activeElement as HTMLElement | null;
-      const overflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      const activeEntry = pushSheet(dialogEl!);
+      entry = activeEntry;
       const first = dialogEl?.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[0] ?? dialogEl;
       first?.focus();
       return () => {
-        document.body.style.overflow = overflow;
-        if (previous && !previous.isConnected && returnFocus) returnFocus()?.focus();
-        else previous?.focus?.();
+        popSheet(activeEntry);
+        entry = undefined;
+        const restore = () => {
+          if (previous && !previous.isConnected && returnFocus) returnFocus()?.focus();
+          else previous?.focus?.();
+        };
+        // 배경 inert는 popSheet가 이미 풀었으니 바로 되돌린다. 아래 시트가 남았으면 그 root의 covered(inert)가
+        // 렌더로 풀린 뒤에야 focus()가 되므로 한 틱 기다린다.
+        if (sheetOpen()) void tick().then(restore);
+        else restore();
       };
     });
   });
 
   function onkeydown(e: KeyboardEvent) {
-    if (!open) return;
+    if (!open || !isTop) return;
     if (e.key === 'Escape') {
+      // 한글 등 IME 조합 중의 Esc는 조합 취소다. keyCode 229는 isComposing을 주지 않는 IME·구형 Safari용.
+      if (e.isComposing || e.keyCode === 229) return;
       e.preventDefault();
       onclose();
       return;
@@ -117,14 +167,10 @@
       dialogEl.focus();
       return;
     }
-    // 스낵바 동작(되돌리기 등)이 있으면 시트의 마지막 컨트롤 다음에 둔다. DOM에서는 떨어져 있어 직접 옮긴다.
-    const snack = snackbarAction();
-    const items = snack ? [...inside, snack] : inside;
-    const first = items[0];
-    const last = items[items.length - 1];
+    const first = inside[0];
+    const last = inside[inside.length - 1];
     const active = document.activeElement;
-    const i = items.indexOf(active as HTMLElement);
-    if (!dialogEl.contains(active) && active !== snack) {
+    if (!dialogEl.contains(active)) {
       e.preventDefault();
       first.focus();
     } else if (e.shiftKey && (active === first || active === dialogEl)) {
@@ -133,26 +179,45 @@
     } else if (!e.shiftKey && active === last) {
       e.preventDefault();
       first.focus();
-    } else if (snack && (active === snack || (!e.shiftKey && i === inside.length - 1))) {
-      e.preventDefault();
-      items[i + (e.shiftKey ? -1 : 1)].focus();
     }
+  }
+
+  function sample(y: number) {
+    const t = performance.now();
+    samples.push({ y, t });
+    while (samples.length > 2 && t - samples[0].t > FLING_WINDOW_MS) samples.shift();
+  }
+  /** 최근 FLING_WINDOW_MS 동안 아래로 움직인 속도(px/ms). */
+  function velocity(): number {
+    const a = samples[0];
+    const b = samples[samples.length - 1];
+    return b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
   }
 
   function dragStart(e: PointerEvent) {
     dragStartY = e.clientY;
+    samples = [];
+    sample(e.clientY);
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   }
   function dragMove(e: PointerEvent) {
     if (dragStartY === null) return;
     dragY = Math.max(0, e.clientY - dragStartY);
+    sample(e.clientY);
   }
-  function dragEnd(e: PointerEvent) {
+  async function dragEnd(e: PointerEvent) {
     if (dragStartY === null) return;
     const dy = e.clientY - dragStartY;
     dragStartY = null;
-    dragY = 0;
-    if (dy > SWIPE_CLOSE_PX) onclose();
+    sample(e.clientY);
+    if (dy > SWIPE_CLOSE_PX || (dy >= FLING_MIN_PX && velocity() > FLING_PX_PER_MS)) {
+      // 끌어 내린 자리에서 닫힘 애니메이션을 이어 가도록 dragY를 남긴다.
+      onclose();
+      await tick();
+      if (open) dragY = 0; // 부모가 닫지 않았으면(확인 대화 등) 제자리로 돌린다.
+    } else {
+      dragY = 0;
+    }
   }
   function dragCancel() {
     dragStartY = null;
@@ -162,8 +227,20 @@
 
 <svelte:window {onkeydown} />
 
-{#if open}
-  <div class="root">
+{#if open || closing}
+  <div
+    class="root"
+    class:closing
+    inert={closing || covered}
+    aria-hidden={closing ? 'true' : undefined}
+    style:z-index={80 + depth}
+    role={closing ? undefined : 'dialog'}
+    aria-modal={closing ? undefined : 'true'}
+    aria-labelledby={closing ? undefined : titleId}
+    tabindex="-1"
+    bind:this={dialogEl}
+    data-sheet-root
+  >
     <!-- 스크림은 마우스·터치용 보조 수단이다. 키보드 사용자는 Esc와 닫기 버튼을 쓴다. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="scrim" onclick={onclose}></div>
@@ -171,11 +248,8 @@
       class="sheet"
       class:dragging={dragY > 0}
       style:transform={dragY > 0 ? `translateY(${dragY}px)` : undefined}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      tabindex="-1"
-      bind:this={dialogEl}
+      bind:this={sheetEl}
+      {onanimationend}
     >
       <div
         class="grab"
@@ -194,6 +268,7 @@
       </header>
       <div class="body">{@render children()}</div>
     </div>
+    {#if open && isTop && snackbarHostMounted()}<SnackbarRegion />{/if}
   </div>
 {/if}
 
@@ -224,8 +299,16 @@
     border-radius: 24px 24px 0 0;
     box-shadow: var(--shadow);
     animation: up var(--dur-slow) var(--ease);
+    /* 끌다 놓았을 때 제자리로 미끄러져 돌아간다. 끄는 동안에는 손가락을 바로 따라간다. */
+    transition: transform var(--dur-base) var(--ease);
   }
-  .sheet:focus {
+  .closing .scrim {
+    animation: fade-out var(--dur-base) var(--ease) forwards;
+  }
+  .closing .sheet {
+    animation: down var(--dur-base) var(--ease) forwards;
+  }
+  .root:focus {
     outline: none;
   }
   .sheet.dragging {
@@ -290,6 +373,9 @@
       border-radius: 20px;
       animation: pop var(--dur-base) var(--ease);
     }
+    .closing .sheet {
+      animation: pop-out var(--dur-fast) var(--ease) forwards;
+    }
     .sheet.dragging {
       transform: translate(-50%, -50%) !important;
     }
@@ -318,10 +404,31 @@
       opacity: 0;
     }
   }
+  /* 닫힘은 to만 둔다. 끌어 내린 위치(인라인 transform)에서 그대로 이어 내려간다. */
+  @keyframes down {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      transform: translate(-50%, -46%);
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
   /* 움직임을 줄이는 설정이면 페이드만 쓴다. */
   @media (prefers-reduced-motion: reduce) {
     .sheet {
       animation: fade var(--dur-fast) linear;
+      transition: none;
+    }
+    .closing .sheet {
+      animation: fade-out var(--dur-fast) linear forwards;
     }
   }
 </style>
