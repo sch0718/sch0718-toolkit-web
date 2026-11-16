@@ -11,6 +11,9 @@ export type SnackbarItem = { id: number; message: string; action?: SnackbarActio
 let current = $state<SnackbarItem | null>(null);
 let timer: ReturnType<typeof setTimeout> | undefined;
 let seq = 0;
+// 현재 스낵바만 기록해 지난 id가 쌓이지 않게 한다.
+let claimed: { id: number; owner: object } | undefined;
+
 // 포커스가 스낵바 안에 있는 동안 타이머를 멈춘다. 멈출 때 남은 시간을 재 두고, 놓으면 그 남은 시간만큼 다시 흐른다.
 let deadline = 0;
 let remaining = 0;
@@ -21,6 +24,12 @@ let unwatch: (() => void) | undefined;
 function stopWatching(): void {
   unwatch?.();
   unwatch = undefined;
+}
+
+/** 같은 알림은 처음 그린 영역에서만 라이브 영역에 넣는다. */
+export function claimSnackbar(id: number, owner: object): boolean {
+  if (claimed?.id !== id) claimed = { id, owner };
+  return claimed.owner === owner;
 }
 
 /** 렌더링용 현재 스낵바(없으면 null). */

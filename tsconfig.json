@@ -8,8 +8,9 @@
     "packages/*/src",
     "packages/*/test",
     "vitest.config.ts",
+    "playwright.config.ts",
     "eslint.config.mjs",
     "scripts"
   ],
-  "exclude": ["packages/ui-svelte"]
+  "exclude": ["packages/ui-svelte/src", "packages/ui-svelte/test/**/*.test.ts"]
 }

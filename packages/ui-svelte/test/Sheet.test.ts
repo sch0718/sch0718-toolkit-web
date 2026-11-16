@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { createRawSnippet, tick } from 'svelte';
+import { createRawSnippet, flushSync, tick } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Sheet from '../src/lib/Sheet.svelte';
+import SheetStackFixture from './SheetStackFixture.svelte';
 import SheetSegmentedFixture from './SheetSegmentedFixture.svelte';
 import SnackbarHost from '../src/lib/SnackbarHost.svelte';
 import { dismissSnackbar, showSnackbar } from '../src/lib/snackbarStore.svelte.js';
@@ -149,9 +150,9 @@ describe('Sheet', () => {
     const dialog = screen.getByRole('dialog');
     await fireEvent.pointerDown(grab, { pointerId: 1, clientY: 100 });
     await fireEvent.pointerMove(grab, { pointerId: 1, clientY: 105 });
-    expect(dialog.style.transform).toBe('translateY(5px)');
+    expect(dialog.querySelector<HTMLElement>('.sheet')!.style.transform).toBe('translateY(5px)');
     await fireEvent.pointerUp(grab, { pointerId: 1, clientY: 105 });
-    expect(dialog.style.transform).toBe('');
+    expect(dialog.querySelector<HTMLElement>('.sheet')!.style.transform).toBe('');
   });
 
   it('닫으면 닫힘 애니메이션이 끝날 때까지 남되 누를 수 없고 접근성 트리에서 빠진다', async () => {
@@ -354,17 +355,19 @@ describe('Sheet', () => {
     const undo = screen.getByRole('button', { name: '되돌리기' });
     expect(undo.hasAttribute('data-snackbar-action')).toBe(true);
 
-    inside.at(-1)!.focus();
-    await fireEvent.keyDown(dialog, { key: 'Tab' });
-    expect(document.activeElement).toBe(undo);
+    expect(dialog.contains(undo)).toBe(true);
+    expect(inside.at(-1)).toBe(undo);
+    const lastControl = inside.at(-2)!;
+    lastControl.focus();
+    // jsdom은 기본 Tab 이동을 하지 않으므로 중간 이동을 막지 않는지 본다.
+    expect(await fireEvent.keyDown(dialog, { key: 'Tab' })).toBe(true);
+    undo.focus();
     await fireEvent.keyDown(undo, { key: 'Tab' });
     expect(document.activeElement).toBe(inside[0]);
 
-    // 거꾸로: 첫 컨트롤 → 되돌리기 → 시트의 마지막 컨트롤
     await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
     expect(document.activeElement).toBe(undo);
-    await fireEvent.keyDown(undo, { key: 'Tab', shiftKey: true });
-    expect(document.activeElement).toBe(inside.at(-1));
+    expect(await fireEvent.keyDown(undo, { key: 'Tab', shiftKey: true })).toBe(true);
   });
 
   it('without a snackbar action the loop stays inside the sheet', async () => {
@@ -414,5 +417,178 @@ describe('Sheet', () => {
     unmount();
     setup({ closeLabel: 'Close' });
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+  });
+
+  it('배경의 inert를 포커스 복원 전에 풀고 앱이 건 inert는 보존한다', async () => {
+    const opener = document.createElement('button');
+    const disabled = document.createElement('aside');
+    disabled.inert = true;
+    document.body.append(opener, disabled);
+    opener.focus();
+    const restored: boolean[] = [];
+    opener.addEventListener('focus', () => restored.push(opener.inert));
+    const { rerender } = setup();
+    await tick();
+    expect(opener.inert).toBe(true);
+    await rerender({ open: false });
+    expect(opener.inert).toBe(false);
+    expect(disabled.inert).toBe(true);
+    expect(restored).toEqual([false]);
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+    disabled.remove();
+  });
+
+  it('각 조상에 새로 붙은 배경 형제도 inert로 만들고 닫으면 되돌린다', async () => {
+    const { container, rerender } = render(SheetStackFixture);
+    const inner = document.createElement('button');
+    const outer = document.createElement('button');
+    container.append(inner);
+    document.body.append(outer);
+    await tick();
+    expect(inner.inert).toBe(true);
+    expect(outer.inert).toBe(true);
+    await rerender({ aOpen: false });
+    expect(inner.inert).toBe(false);
+    expect(outer.inert).toBe(false);
+    outer.remove();
+  });
+
+  it('맨 위 시트만 키를 처리하고 닫으면 아래 시트가 다시 배경을 막는다', async () => {
+    const oncloseA = vi.fn();
+    const oncloseB = vi.fn();
+    const { container, rerender } = render(SheetStackFixture, { oncloseA, oncloseB });
+    const a = screen.getByRole('dialog');
+    await rerender({ bOpen: true });
+    const b = screen.getByRole('dialog', { name: '시트 B' });
+    expect(a.inert).toBe(true);
+    expect(b.inert).toBe(false);
+    expect(Number(b.style.zIndex)).toBeGreaterThan(Number(a.style.zIndex));
+    await fireEvent.keyDown(b, { key: 'Escape' });
+    expect(oncloseB).toHaveBeenCalledTimes(1);
+    expect(oncloseA).not.toHaveBeenCalled();
+    await rerender({ bOpen: false });
+    expect(a.inert).toBe(false);
+    expect(container.querySelector<HTMLElement>('[data-background]')!.inert).toBe(true);
+  });
+
+  it('DOM 앞쪽 시트를 나중에 열어도 시각적으로 맨 위에 쌓인다', async () => {
+    const { rerender } = render(SheetStackFixture, { aOpen: false, bOpen: true });
+    const b = screen.getByRole('dialog', { name: '시트 B' });
+    await rerender({ aOpen: true, bOpen: true });
+    const a = screen.getByRole('dialog', { name: '시트 A' });
+    expect(Number(a.style.zIndex)).toBeGreaterThan(Number(b.style.zIndex));
+    expect(a.inert).toBe(false);
+    expect(b.inert).toBe(true);
+  });
+
+  it('위 시트를 닫으면 아래 root의 inert가 갱신된 뒤 이전 포커스를 복원한다', async () => {
+    const { rerender } = render(SheetStackFixture);
+    const a = screen.getByRole('dialog');
+    const input = screen.getByRole('textbox', { name: 'A 입력' });
+    input.focus();
+    const focus = input.focus.bind(input);
+    // jsdom에 없는 inert의 focus 차단을 이 요소에서만 재현한다.
+    const restore = vi.spyOn(input, 'focus').mockImplementation(() => {
+      if (!a.inert) focus();
+    });
+    try {
+      await rerender({ bOpen: true });
+      expect(document.activeElement).not.toBe(input);
+      await rerender({ bOpen: false });
+      expect(document.activeElement).toBe(input);
+    } finally {
+      restore.mockRestore();
+    }
+  });
+
+  it('안에 중첩한 시트는 조상 root를 inert로 만들지 않고 닫힌 자손은 Tab에서 뺀다', async () => {
+    const { rerender } = render(SheetStackFixture, { nested: true });
+    const a = screen.getByRole('dialog');
+    const input = screen.getByRole('textbox', { name: 'A 입력' });
+    await rerender({ bOpen: true });
+    const b = screen.getByRole('dialog', { name: '시트 B' });
+    expect(a.contains(b)).toBe(true);
+    expect(a.inert).toBe(false);
+    expect(input.inert).toBe(true);
+    await rerender({ bOpen: false });
+    expect(input.inert).toBe(false);
+    input.focus();
+    await fireEvent.keyDown(input, { key: 'Tab' });
+    expect(document.activeElement).toBe(a.querySelector('[data-sheet-close]'));
+  });
+
+  it('덮인 시트의 제목을 바꿔도 root가 inert로 남는다', async () => {
+    const { rerender } = render(SheetStackFixture);
+    const a = screen.getByRole('dialog');
+    await rerender({ bOpen: true });
+    await rerender({ bOpen: true, title: '바뀐 A' });
+    expect(a.textContent).toContain('바뀐 A');
+    expect(a.inert).toBe(true);
+  });
+
+  it('아래 시트부터 닫아도 스크롤 잠금을 유지하고 닫히는 root의 inert를 풀지 않는다', async () => {
+    document.body.style.overflow = 'scroll';
+    const { rerender } = render(SheetStackFixture);
+    const a = screen.getByRole('dialog');
+    await rerender({ bOpen: true });
+    await rerender({ aOpen: false, bOpen: true });
+    expect(document.body.style.overflow).toBe('hidden');
+    await rerender({ aOpen: false, bOpen: false });
+    expect(a.classList.contains('closing')).toBe(true);
+    expect(a.inert).toBe(true);
+    expect(document.body.style.overflow).toBe('scroll');
+    document.body.style.overflow = '';
+  });
+
+  it('시트 안 스낵바를 호스트로 돌려도 같은 알림을 라이브 영역에 다시 넣지 않는다', async () => {
+    const host = render(SnackbarHost);
+    showSnackbar('이전 알림');
+    await tick();
+    expect(host.container.querySelector('[role="status"]')!.textContent).toContain('이전 알림');
+    const { rerender } = setup();
+    await tick();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('이전 알림');
+    expect(dialog.querySelector('[aria-live="polite"]')!.textContent).toBe('');
+    await rerender({ open: false });
+    expect(host.container.textContent).toContain('이전 알림');
+    expect(host.container.querySelector('[role="status"]')!.textContent).toBe('');
+    await rerender({ open: true });
+    showSnackbar('삭제했어요', { label: '되돌리기', run: () => {} });
+    await tick();
+    const live = screen.getByRole('dialog').querySelector('[aria-live="polite"]')!;
+    expect(live.getAttribute('role')).toBeNull();
+    expect(live.getAttribute('aria-atomic')).toBe('true');
+    expect(live.textContent).toContain('삭제했어요');
+    expect(host.container.textContent?.trim()).toBe('');
+    await rerender({ open: false });
+    expect(host.container.textContent).toContain('삭제했어요');
+    expect(host.container.querySelector('[role="status"]')!.textContent).toBe('');
+    showSnackbar('새 알림');
+    await tick();
+    expect(host.container.querySelector('[role="status"]')!.textContent).toContain('새 알림');
+  });
+
+  it('스낵바 포커스를 가진 시트를 닫으면 남은 시간부터 다시 흐른다', async () => {
+    vi.useFakeTimers();
+    try {
+      render(SnackbarHost);
+      const { rerender } = setup();
+      showSnackbar('삭제했어요', { label: '되돌리기', run: () => {} }, 8000);
+      await tick();
+      vi.advanceTimersByTime(3000);
+      screen.getByRole('button', { name: '되돌리기' }).focus();
+      vi.advanceTimersByTime(60_000);
+      await rerender({ open: false });
+      vi.advanceTimersByTime(4999);
+      flushSync();
+      expect(screen.getByRole('button', { name: '되돌리기' })).toBeTruthy();
+      vi.advanceTimersByTime(1);
+      flushSync();
+      expect(screen.queryByRole('button', { name: '되돌리기' })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

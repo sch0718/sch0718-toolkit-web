@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import snackSource from '../src/lib/Snackbar.svelte?raw';
 import sheetSource from '../src/lib/Sheet.svelte?raw';
-import hostSource from '../src/lib/SnackbarHost.svelte?raw';
+import hostSource from '../src/lib/SnackbarRegion.svelte?raw';
 import tokensCss from '../src/lib/tokens.css?raw';
 
 function style(source: string): string {

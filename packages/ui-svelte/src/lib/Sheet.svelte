@@ -1,5 +1,7 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from 'svelte';
+  import SnackbarRegion from './SnackbarRegion.svelte';
+  import { isTopSheet, popSheet, pushSheet, sheetCovered, sheetDepth, sheetOpen } from './sheetStack.svelte.js';
 
   let {
     open,
@@ -22,6 +24,7 @@
     closeLabel?: string;
   } = $props();
 
+  const isOpen = $derived(open);
   const titleId = `sheet-title-${Math.random().toString(36).slice(2, 9)}`;
   const SWIPE_CLOSE_PX = 80;
   // 빠르게 튕겨 내리면 80px에 못 미쳐도 닫는다. 최근 100ms 동안의 평균 속도로 본다.
@@ -44,10 +47,10 @@
     .map((sel) => `${sel}:not([tabindex="-1"])`)
     .join(', ');
 
-  /** 대화상자 안에서 보이지 않는 요소(hidden 속성, display:none, visibility:hidden)는 건너뛴다. */
+  /** 대화상자 안에서 숨겨졌거나 inert인 요소는 건너뛴다. */
   function isHidden(el: HTMLElement): boolean {
     for (let n: HTMLElement | null = el; n && n !== dialogEl; n = n.parentElement) {
-      if (n.hidden) return true;
+      if (n.hidden || n.inert) return true;
       const cs = getComputedStyle(n);
       if (cs.display === 'none' || cs.visibility === 'hidden') return true;
     }
@@ -55,6 +58,10 @@
   }
 
   let dialogEl = $state<HTMLElement>();
+  let entry = $state.raw<ReturnType<typeof pushSheet>>();
+  const isTop = $derived(isTopSheet(entry));
+  const covered = $derived(sheetCovered(entry));
+  const depth = $derived(sheetDepth(entry));
   let dragStartY: number | null = null;
   let dragY = $state(0);
   let samples: { y: number; t: number }[] = [];
@@ -113,26 +120,27 @@
     return els.filter((el) => !namedRadio(el) || stop.get(el.name) === el);
   }
 
-  /** 시트 밖(SnackbarHost)에 떠 있는 스낵바 동작 버튼. 시트가 열려 있는 동안 Tab 순환의 끝에 넣는다. */
-  function snackbarAction(): HTMLElement | null {
-    return document.querySelector<HTMLElement>('[data-snackbar-action]');
-  }
-
-  // 열릴 때: 이전 포커스를 기억하고 첫 요소(data-autofocus 우선)로 이동. 닫힐 때: 복원.
-  // 스크롤도 함께 잠근다.
+  // 열릴 때 스택에 넣고 첫 요소(data-autofocus 우선)로 이동. 닫힐 때 배경을 푼 뒤 포커스를 복원한다.
   $effect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     // dialogEl은 이 시점에 이미 바인딩돼 있다. 의존성으로 잡으면 포커스가 다시 움직이므로 untrack.
     return untrack(() => {
       const previous = document.activeElement as HTMLElement | null;
-      const overflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      const activeEntry = pushSheet(dialogEl!);
+      entry = activeEntry;
       const first = dialogEl?.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[0] ?? dialogEl;
       first?.focus();
       return () => {
-        document.body.style.overflow = overflow;
-        if (previous && !previous.isConnected && returnFocus) returnFocus()?.focus();
-        else previous?.focus?.();
+        popSheet(activeEntry);
+        entry = undefined;
+        const restore = () => {
+          if (previous && !previous.isConnected && returnFocus) returnFocus()?.focus();
+          else previous?.focus?.();
+        };
+        // 배경 inert는 popSheet가 이미 풀었으니 바로 되돌린다. 아래 시트가 남았으면 그 root의 covered(inert)가
+        // 렌더로 풀린 뒤에야 focus()가 되므로 한 틱 기다린다.
+        if (sheetOpen()) void tick().then(restore);
+        else restore();
       };
     });
   });
@@ -140,7 +148,7 @@
   function onkeydown(e: KeyboardEvent) {
     // 한글 등 IME 조합 중의 Esc는 조합 취소다. keyCode 229는 isComposing을 주지 않는 IME·구형 Safari용.
     if (e.isComposing || e.keyCode === 229) return;
-    if (!open) return;
+    if (!open || !isTop) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       onclose();
@@ -153,14 +161,10 @@
       dialogEl.focus();
       return;
     }
-    // 스낵바 동작(되돌리기 등)이 있으면 시트의 마지막 컨트롤 다음에 둔다. DOM에서는 떨어져 있어 직접 옮긴다.
-    const snack = snackbarAction();
-    const items = snack ? [...inside, snack] : inside;
-    const first = items[0];
-    const last = items[items.length - 1];
+    const first = inside[0];
+    const last = inside[inside.length - 1];
     const active = document.activeElement;
-    const i = items.indexOf(active as HTMLElement);
-    if (!dialogEl.contains(active) && active !== snack) {
+    if (!dialogEl.contains(active)) {
       e.preventDefault();
       first.focus();
     } else if (e.shiftKey && (active === first || active === dialogEl)) {
@@ -169,9 +173,6 @@
     } else if (!e.shiftKey && active === last) {
       e.preventDefault();
       first.focus();
-    } else if (snack && (active === snack || (!e.shiftKey && i === inside.length - 1))) {
-      e.preventDefault();
-      items[i + (e.shiftKey ? -1 : 1)].focus();
     }
   }
 
@@ -221,7 +222,19 @@
 <svelte:window {onkeydown} />
 
 {#if open || closing}
-  <div class="root" class:closing inert={closing} aria-hidden={closing ? 'true' : undefined}>
+  <div
+    class="root"
+    class:closing
+    inert={closing || covered}
+    aria-hidden={closing ? 'true' : undefined}
+    style:z-index={80 + depth}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby={titleId}
+    tabindex="-1"
+    bind:this={dialogEl}
+    data-sheet-root
+  >
     <!-- 스크림은 마우스·터치용 보조 수단이다. 키보드 사용자는 Esc와 닫기 버튼을 쓴다. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="scrim" onclick={onclose}></div>
@@ -229,11 +242,6 @@
       class="sheet"
       class:dragging={dragY > 0}
       style:transform={dragY > 0 ? `translateY(${dragY}px)` : undefined}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      tabindex="-1"
-      bind:this={dialogEl}
       {onanimationend}
     >
       <div
@@ -253,6 +261,7 @@
       </header>
       <div class="body">{@render children()}</div>
     </div>
+    {#if open && isTop}<SnackbarRegion inSheet />{/if}
   </div>
 {/if}
 
@@ -292,7 +301,7 @@
   .closing .sheet {
     animation: down var(--dur-base) var(--ease) forwards;
   }
-  .sheet:focus {
+  .root:focus {
     outline: none;
   }
   .sheet.dragging {

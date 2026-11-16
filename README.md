@@ -45,6 +45,7 @@
 | 시험                        | [Vitest](https://github.com/vitest-dev/vitest)                                                                                        |         17.3k |
 | Svelte 컴포넌트 시험        | [Testing Library Svelte](https://github.com/testing-library/svelte-testing-library)                                                   |           665 |
 | 시험용 DOM                  | [jsdom](https://github.com/jsdom/jsdom) 29 (30은 쓰지 않음, 아래)                                                                     |         21.7k |
+| 브라우저 시험(접근성 트리)  | [Playwright](https://github.com/microsoft/playwright) 1.64 (100.3k, 2026-11-16 확인)                                                  |        100.3k |
 | 린트                        | [ESLint](https://github.com/eslint/eslint) + [typescript-eslint](https://github.com/typescript-eslint/typescript-eslint)              | 27.6k / 16.5k |
 | 포맷                        | [Prettier](https://github.com/prettier/prettier)                                                                                      |         52.4k |
 | tsconfig 기본값             | [tsconfig/bases](https://github.com/tsconfig/bases) `@tsconfig/strictest`                                                             |          7.9k |
@@ -56,6 +57,7 @@
 - `@sveltejs/package` 3은 TypeScript 6을 요구해 2.5를 씁니다.
 - jsdom은 29.1.1에 고정합니다. 30은 계산된 `background`를 펼치면서 `var()`를 버려 가즈아에서 옮긴 Toggle 시험 둘이 깨집니다. Dependabot도 jsdom 메이저 버전을 올리지 않습니다.
 - 패키지 형식 검사에서 `ui-svelte`는 publint만 씁니다. Are the types wrong?이 `.svelte` 파일을 이해하지 못하기 때문입니다. `firebase-session`은 마이그레이션 SQL 진입점(`./migrations/0001_users_sessions.sql`)을 Are the types wrong? 검사에서 뺍니다.
+- Playwright는 jsdom에 없는 접근성 트리를 보는 시트 시험(`pnpm test:browser`)에만 씁니다. Chromium·WebKit이 설치돼 있어야 해서 `verify`와 CI에는 넣지 않고, 시트·스낵바를 바꿀 때 직접 돌립니다.
 - 번들러(tsup·tsdown 등)는 쓰지 않습니다. 순수 TS 패키지는 `tsc` 출력으로 충분하고, Svelte 패키지(`ui-svelte`)만 `@sveltejs/package`로 빌드합니다. 필요해지면 그때 고릅니다.
 
 ## 개발
@@ -67,6 +69,7 @@ corepack enable
 pnpm install
 pnpm run verify   # 린트·포맷·타입·시험·빌드·패키지 형식·크기
 pnpm compat       # 발행할 tarball을 소비자 조건에 설치해 타입 검사(빌드 후)
+pnpm test:browser # 시트 접근성 트리 시험(Chromium·WebKit 필요: pnpm exec playwright install chromium webkit)
 ```
 
 `pnpm ci`는 pnpm 11의 내장 명령(깨끗하게 다시 설치)이라서, 검사 스크립트 이름은 `verify`입니다.
