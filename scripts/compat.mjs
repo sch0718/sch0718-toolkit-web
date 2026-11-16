@@ -17,7 +17,13 @@ const root = resolve(import.meta.dirname, '..');
 const packsDir = join(root, '.packs');
 const run = (cmd, args, cwd) =>
   execFileSync(cmd, args, { cwd, stdio: 'inherit', env: corepackEnv });
-const corepackEnv = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
+// Yarn 1은 file: tarball을 이름·버전으로 캐시해, 버전을 올리지 않은 패키지의 바뀐 내용을 보지 못한다. 매번 빈 캐시를 쓴다.
+const yarnCache = mkdtempSync(join(tmpdir(), 'toolkit-compat-yarn-'));
+const corepackEnv = {
+  ...process.env,
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+  YARN_CACHE_FOLDER: yarnCache,
+};
 
 rmSync(packsDir, { recursive: true, force: true });
 mkdirSync(packsDir);
@@ -58,4 +64,5 @@ for (const fixture of fixtures) {
   else run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
 }
 rmSync(base, { recursive: true, force: true });
+rmSync(yarnCache, { recursive: true, force: true });
 console.log(`\n호환 시험 통과: ${fixtures.join(', ')}`);

@@ -84,3 +84,14 @@ export const ratio: number = contrast(
   tokenValue(tokenBlocks.light, 't1'),
   composite('rgba(0,0,0,.1)', '#fff'),
 );
+
+import { watchVersion, type WatchVersionOptions } from '@sch0718/app-update';
+import { appVersion } from '@sch0718/vite-app/app-version';
+
+const versionOptions: WatchVersionOptions = {
+  current: 'abc',
+  onUpdate: (reload) => reload(),
+  canAutoReload: () => true,
+};
+export const stopVersion: () => void = watchVersion(versionOptions);
+export const versionPlugin: { name: string } = appVersion({ version: 'abc' });

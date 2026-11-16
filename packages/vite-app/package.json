@@ -1,7 +1,7 @@
 {
   "name": "@sch0718/vite-app",
   "version": "0.1.1",
-  "description": "서비스 공통 Vite 설정: PWA 옵션 팩토리, 개발 서버 CSP 완화.",
+  "description": "서비스 공통 Vite 설정: PWA 옵션 팩토리, 개발 서버 CSP 완화, 앱 버전 id(version.json).",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": "신춘호 (https://github.com/sch0718)",
   "repository": {
@@ -15,6 +15,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./app-version": {
+      "types": "./dist/appVersion.d.ts",
+      "default": "./dist/appVersion.js"
     },
     "./package.json": "./package.json"
   },
@@ -32,5 +36,10 @@
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
+  },
+  "peerDependenciesMeta": {
+    "vite-plugin-pwa": {
+      "optional": true
+    }
   }
 }

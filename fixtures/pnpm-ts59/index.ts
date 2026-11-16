@@ -244,5 +244,9 @@ export const unseen: ReleaseNote[] = takeUnseenReleases(
   notes,
   createSeenStore({ key: 'compat:release-seen:v1', ids: notes.map((n) => n.version) }),
 );
-const updateOptions: WatchAppUpdateOptions = { onUpdate: (reload) => reload(), autoReloadMs: 0 };
+const updateOptions: WatchAppUpdateOptions = {
+  onUpdate: (reload) => reload(),
+  autoReloadMs: 0,
+  canAutoReload: () => false,
+};
 export const stopUpdate: () => void = watchAppUpdate(updateOptions);
