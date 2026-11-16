@@ -1,6 +1,6 @@
 {
   "name": "@sch0718/app-update",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "배포 뒤 새 버전을 알아채 접속 직후면 자동으로 새로고침하고, 쓰는 중이면 안내만 한다. 안 본 릴리스 내용을 고른다.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": "신춘호 (https://github.com/sch0718)",
