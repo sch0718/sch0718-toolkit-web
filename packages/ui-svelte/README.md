@@ -183,6 +183,8 @@ applyPalette(readPaletteChoice('myapp:palette', 'blue'));
 | `Toggle`        | `checked`, `label`, `onchange(checked)`, `disabled?`, `id?`, `describedby?`, `softDisabled?`                                                     |
 | `TopBar`        | `children`, `sticky?`, `label?`. 셸 절                                                                                                           |
 
+`Sheet`는 열린 동안 모달입니다. 맨 위 시트 밖은 `inert`가 되고, 겹쳐 열면 맨 위 시트만 키를 받습니다. 닫을 때는 닫힘 애니메이션이 끝날 때까지 `children`을 그대로 그리므로, `open={item !== null}`처럼 열 때 쓴 값을 닫는 순간 지우면 내려가는 동안 내용이 비어 보입니다.
+
 ## 스낵바
 
 `SnackbarHost`를 앱 루트에 한 번 두고, 어디서든 `showSnackbar(message, action?, ms?)`로 띄웁니다. 새 스낵바는 이전 것을 대체하고, `ms`(기본 5000) 뒤에 사라집니다. 포커스가 스낵바 안에 있는 동안은 타이머가 멈춥니다.
@@ -212,6 +214,8 @@ showSnackbar('지웠어요', { label: '되돌리기', run: () => restore(row) })
 | `--snack-bottom` | 1024px 미만 `calc(96px + env(safe-area-inset-bottom, 0px))`, 이상 `32px` |
 
 값은 `px`·`rem`·`vw`로 지정합니다. `%`와 `em`은 위치와 최대 너비의 기준이 달라 어긋납니다. `--snack-bottom`을 주면 두 화면 구간 모두 그 값을 쓰므로, 구간마다 다르게 하려면 서비스의 미디어 쿼리에서 따로 지정합니다. 기본값의 safe-area도 함께 사라지니 필요하면 직접 더합니다(예: `calc(72px + env(safe-area-inset-bottom, 0px))`).
+
+시트가 열려 있으면 스낵바는 맨 위 시트 안(같은 자리)에 그려지고 `SnackbarHost`는 그동안 비어 있습니다. 시트 밖은 `inert`라 바깥 호스트에는 닿을 수 없기 때문입니다. 그래서 위치 변수는 시트가 놓인 자리에서도 같은 값으로 읽히게 `:root`나 시트와 호스트를 함께 감싸는 요소에 둡니다.
 
 ```css
 /* app.css: 768~1023px는 72px 레일, 1024px 이상은 240px 사이드바 */
