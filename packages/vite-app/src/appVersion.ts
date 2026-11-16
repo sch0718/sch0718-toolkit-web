@@ -9,7 +9,11 @@ const COMMIT_ENV = ['CF_PAGES_COMMIT_SHA', 'WORKERS_CI_COMMIT_SHA', 'GITHUB_SHA'
 export function resolveAppVersion(
   version?: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
-  git: () => string = () => execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }),
+  git: () => string = () =>
+    execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }),
 ): string {
   if (version) return version;
   for (const k of COMMIT_ENV) if (env[k]) return env[k];
@@ -23,15 +27,17 @@ export function resolveAppVersion(
 }
 
 export function appVersion(o: { version?: string } = {}): Plugin {
-  let id = 'dev';
+  // 한 빌드 안에서 config가 여러 번 불려도 define과 version.json의 id가 같도록 처음 한 번만 정한다.
+  let id: string | undefined;
   return {
     name: 'sch0718-app-version',
     config(_, { command }) {
-      if (command === 'build') id = resolveAppVersion(o.version);
+      id ??= command === 'build' ? resolveAppVersion(o.version) : 'dev';
       return { define: { 'import.meta.env.APP_VERSION': JSON.stringify(id) } };
     },
     generateBundle() {
-      if (id === 'dev') return;
+      // SSR·Worker 출력에는 내지 않는다(브라우저가 받는 출력에만).
+      if (!id || id === 'dev' || this.environment.config.consumer !== 'client') return;
       this.emitFile({
         type: 'asset',
         fileName: 'version.json',

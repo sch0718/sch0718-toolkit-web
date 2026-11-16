@@ -45,24 +45,29 @@ const wanted = process.argv.slice(2);
 const fixtures = readdirSync(join(root, 'fixtures')).filter(
   (f) => !wanted.length || wanted.includes(f),
 );
-for (const fixture of fixtures) {
-  console.log(`\n== ${fixture}`);
-  const dir = join(base, fixture);
-  cpSync(join(root, 'fixtures', fixture), dir, { recursive: true });
-  const pkgPath = join(dir, 'package.json');
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  pkg.dependencies = Object.fromEntries(Object.entries(tarballs).map(([n, f]) => [n, `file:${f}`]));
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-  const manager = pkg.packageManager.split('@')[0];
-  run(
-    'corepack',
-    manager === 'yarn' ? ['yarn', 'install', '--no-lockfile'] : [manager, 'install'],
-    dir,
-  );
-  // fixture에 check 스크립트가 있으면(예: tsc + svelte-check) 그것을, 없으면 tsc만 돌린다.
-  if (pkg.scripts?.check) run('corepack', [manager, 'run', 'check'], dir);
-  else run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
+try {
+  for (const fixture of fixtures) {
+    console.log(`\n== ${fixture}`);
+    const dir = join(base, fixture);
+    cpSync(join(root, 'fixtures', fixture), dir, { recursive: true });
+    const pkgPath = join(dir, 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    pkg.dependencies = Object.fromEntries(
+      Object.entries(tarballs).map(([n, f]) => [n, `file:${f}`]),
+    );
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+    const manager = pkg.packageManager.split('@')[0];
+    run(
+      'corepack',
+      manager === 'yarn' ? ['yarn', 'install', '--no-lockfile'] : [manager, 'install'],
+      dir,
+    );
+    // fixture에 check 스크립트가 있으면(예: tsc + svelte-check) 그것을, 없으면 tsc만 돌린다.
+    if (pkg.scripts?.check) run('corepack', [manager, 'run', 'check'], dir);
+    else run('corepack', [manager, manager === 'yarn' ? 'run' : 'exec', 'tsc', '-p', '.'], dir);
+  }
+} finally {
+  rmSync(base, { recursive: true, force: true });
+  rmSync(yarnCache, { recursive: true, force: true });
 }
-rmSync(base, { recursive: true, force: true });
-rmSync(yarnCache, { recursive: true, force: true });
 console.log(`\n호환 시험 통과: ${fixtures.join(', ')}`);

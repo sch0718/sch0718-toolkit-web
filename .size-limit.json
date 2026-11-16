@@ -15,7 +15,7 @@
     "name": "@sch0718/app-update watchVersion",
     "path": "packages/app-update/dist/index.js",
     "import": "{ watchVersion }",
-    "limit": "500 B"
+    "limit": "560 B"
   },
   {
     "name": "@sch0718/firebase-session/client",

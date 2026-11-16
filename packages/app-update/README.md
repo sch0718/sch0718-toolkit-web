@@ -48,7 +48,8 @@ if (import.meta.env.PROD) {
 }
 ```
 
-- 시작할 때 한 번, 화면이 다시 보일 때 마지막 확인에서 `checkIntervalMs`(기본 30분)가 지났으면 `version.json`을 캐시 없이(`cache: 'no-store'`) 받습니다. 주소는 문서 base 기준이고 `url`로 바꿀 수 있습니다.
+- 시작할 때 한 번, 화면이 다시 보일 때 마지막 확인에서 `checkIntervalMs`(기본 30분)가 지났으면 `version.json`을 캐시 없이(`cache: 'no-store'`) 받습니다. 기본 주소는 출처 루트(`/version.json`)라 SPA의 깊은 경로에서도 맞습니다. 하위 경로에 배포하면 `url: \`${import.meta.env.BASE_URL}version.json\``을 줍니다.
+- 같은 새 id로는 한 번만 자동 새로고침합니다(`sessionStorage`에 기록). HTML이 캐시에서 옛것으로 오면 새로고침이 끝없이 되풀이되기 때문입니다. 두 번째부터는 안내만 합니다.
 - id가 다르면 새 버전입니다. 자동 새로고침·안내 규칙(`autoReloadMs`, 조작 감지, `canAutoReload`)은 `watchAppUpdate`와 같습니다. 같은 새 id는 한 번만 알립니다.
 - 네트워크 오류나 형식이 다른 응답은 조용히 넘기고 다음 확인 때 다시 봅니다.
 - 빌드 도구가 없는 서비스도 같은 규약(`version.json`, 불투명 id 비교)을 따르면 됩니다.

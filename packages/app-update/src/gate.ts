@@ -40,9 +40,10 @@ export function createUpdateGate(o: UpdateGateOptions, doc: AppUpdateDocument) {
   for (const t of INTERACTIONS) doc.addEventListener(t, touched, true);
   return {
     now,
-    /** 새 버전을 알았을 때 부른다. */
-    fire() {
+    /** 새 버전을 알았을 때 부른다. `auto`가 false면 자동 새로고침하지 않는다. */
+    fire(auto = true) {
       if (
+        auto &&
         !interacted &&
         now() - startedAt <= (o.autoReloadMs ?? 5000) &&
         (o.canAutoReload?.() ?? true)

@@ -17,15 +17,21 @@ describe('resolveAppVersion', () => {
 });
 
 describe('appVersion', () => {
-  type Hook = (this: { emitFile: (f: unknown) => void }) => void;
-  const run = (command: 'build' | 'serve') => {
+  type Hook = (this: {
+    emitFile: (f: unknown) => void;
+    environment: { config: { consumer: string } };
+  }) => void;
+  const run = (command: 'build' | 'serve', consumer = 'client') => {
     const p = appVersion({ version: 'abc' });
     const config = (p.config as (c: object, e: { command: string }) => { define: object })(
       {},
       { command },
     );
     const files: unknown[] = [];
-    (p.generateBundle as unknown as Hook).call({ emitFile: (f) => files.push(f) });
+    (p.generateBundle as unknown as Hook).call({
+      emitFile: (f) => files.push(f),
+      environment: { config: { consumer } },
+    });
     return { config, files };
   };
 
@@ -35,6 +41,10 @@ describe('appVersion', () => {
     expect(files).toEqual([
       { type: 'asset', fileName: 'version.json', source: '{"version":"abc"}\n' },
     ]);
+  });
+
+  it('SSR·Worker 출력에는 version.json을 내지 않는다', () => {
+    expect(run('build', 'server').files).toEqual([]);
   });
 
   it('개발 서버에서는 dev로 두고 version.json을 내지 않는다', () => {
