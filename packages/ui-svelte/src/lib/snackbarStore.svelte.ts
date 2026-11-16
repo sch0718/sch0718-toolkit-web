@@ -26,6 +26,20 @@ function stopWatching(): void {
   unwatch = undefined;
 }
 
+let hosts = $state(0);
+
+/** SnackbarHost가 붙어 있는 동안 센다. 호스트가 없는 앱(스낵바를 쓰지 않음)은 시트 안에도 알림 영역을 두지 않는다. */
+export function registerSnackbarHost(): () => void {
+  hosts++;
+  return () => {
+    hosts--;
+  };
+}
+
+export function snackbarHostMounted(): boolean {
+  return hosts > 0;
+}
+
 /** 같은 알림은 처음 그린 영역에서만 라이브 영역에 넣는다. */
 export function claimSnackbar(id: number, owner: object): boolean {
   if (claimed?.id !== id) claimed = { id, owner };

@@ -14,6 +14,17 @@ const body = createRawSnippet(() => ({
   render: () => `<div><button id="first">첫째</button><button id="second">둘째</button></div>`,
 }));
 
+/** 닫힘 애니메이션이 도는 브라우저처럼 보이게 한다. jsdom에는 getAnimations가 없어 시트가 바로 내려간다. */
+function withAnimations(): () => void {
+  const proto = HTMLElement.prototype as { getAnimations?: () => unknown[] };
+  const original = proto.getAnimations;
+  proto.getAnimations = () => [{}];
+  return () => {
+    if (original) proto.getAnimations = original;
+    else delete proto.getAnimations;
+  };
+}
+
 function setup(props: Record<string, unknown> = {}) {
   const onclose = vi.fn();
   const view = render(Sheet, { open: true, title: '지표 선택', onclose, children: body, ...props });
@@ -156,19 +167,34 @@ describe('Sheet', () => {
   });
 
   it('닫으면 닫힘 애니메이션이 끝날 때까지 남되 누를 수 없고 접근성 트리에서 빠진다', async () => {
+    const restore = withAnimations();
+    try {
+      const { rerender, container } = setup();
+      const sheet = container.ownerDocument.querySelector<HTMLElement>('.sheet')!;
+      await rerender({ open: false });
+      const root = container.ownerDocument.querySelector<HTMLElement>('.root')!;
+      expect(root.classList.contains('closing')).toBe(true);
+      expect(root.inert).toBe(true);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      // 앱이 [role=dialog][aria-modal]로 「모달이 열려 있음」을 판단하므로 닫는 동안에는 역할을 뗀다.
+      expect(root.hasAttribute('role')).toBe(false);
+      expect(root.hasAttribute('aria-modal')).toBe(false);
+      await fireEvent.animationEnd(sheet);
+      expect(container.ownerDocument.querySelector('.root')).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it('닫힘 애니메이션이 돌지 않으면 기다리지 않고 바로 내린다', async () => {
     const { rerender, container } = setup();
-    const sheet = container.ownerDocument.querySelector<HTMLElement>('.sheet')!;
     await rerender({ open: false });
-    const root = container.ownerDocument.querySelector<HTMLElement>('.root')!;
-    expect(root.classList.contains('closing')).toBe(true);
-    expect(root.inert).toBe(true);
-    expect(screen.queryByRole('dialog')).toBeNull();
-    await fireEvent.animationEnd(sheet);
     expect(container.ownerDocument.querySelector('.root')).toBeNull();
   });
 
   it('animationend가 오지 않아도 시한이 지나면 내린다', async () => {
     vi.useFakeTimers();
+    const restore = withAnimations();
     try {
       const { rerender, container } = setup();
       await rerender({ open: false });
@@ -176,19 +202,27 @@ describe('Sheet', () => {
       await vi.advanceTimersByTimeAsync(400);
       expect(container.ownerDocument.querySelector('.root')).toBeNull();
     } finally {
+      restore();
       vi.useRealTimers();
     }
   });
 
   it('닫히는 도중 다시 열면 그대로 열린 상태로 돌아온다', async () => {
-    const { rerender, container } = setup();
-    await rerender({ open: false });
-    await rerender({ open: true });
-    const root = container.ownerDocument.querySelector<HTMLElement>('.root')!;
-    expect(root.classList.contains('closing')).toBe(false);
-    expect(root.inert).toBe(false);
-    await fireEvent.animationEnd(container.ownerDocument.querySelector('.sheet')!);
-    expect(screen.getByRole('dialog')).toBeTruthy();
+    const restore = withAnimations();
+    try {
+      const { rerender, container } = setup();
+      await rerender({ open: false });
+      const root = container.ownerDocument.querySelector<HTMLElement>('.root')!;
+      expect(root.classList.contains('closing')).toBe(true);
+      await rerender({ open: true });
+      expect(container.ownerDocument.querySelector('.root')).toBe(root);
+      expect(root.classList.contains('closing')).toBe(false);
+      expect(root.inert).toBe(false);
+      await fireEvent.animationEnd(container.ownerDocument.querySelector('.sheet')!);
+      expect(screen.getByRole('dialog')).toBeTruthy();
+    } finally {
+      restore();
+    }
   });
 
   it('skips tabindex=-1 elements when wrapping Tab (Segmented as last control)', async () => {
@@ -551,15 +585,19 @@ describe('Sheet', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toContain('이전 알림');
     expect(dialog.querySelector('[aria-live="polite"]')!.textContent).toBe('');
+    // 시트가 열린 동안 호스트의 상태 영역은 숨어, getByRole('status')는 시트 안 영역 하나만 찾는다.
+    expect(host.container.querySelector('[role="status"]')!.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('status').closest('[role="dialog"]')).toBe(dialog);
     await rerender({ open: false });
     expect(host.container.textContent).toContain('이전 알림');
     expect(host.container.querySelector('[role="status"]')!.textContent).toBe('');
     await rerender({ open: true });
     showSnackbar('삭제했어요', { label: '되돌리기', run: () => {} });
     await tick();
-    const live = screen.getByRole('dialog').querySelector('[aria-live="polite"]')!;
-    expect(live.getAttribute('role')).toBeNull();
-    expect(live.getAttribute('aria-atomic')).toBe('true');
+    const live = screen.getByRole('status');
+    expect(screen.getByRole('dialog').contains(live)).toBe(true);
     expect(live.textContent).toContain('삭제했어요');
     expect(host.container.textContent?.trim()).toBe('');
     await rerender({ open: false });
@@ -568,6 +606,12 @@ describe('Sheet', () => {
     showSnackbar('새 알림');
     await tick();
     expect(host.container.querySelector('[role="status"]')!.textContent).toContain('새 알림');
+  });
+
+  it('SnackbarHost가 없으면 시트 안에도 알림 영역을 두지 않는다', () => {
+    setup();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('dialog').querySelector('[aria-live]')).toBeNull();
   });
 
   it('스낵바 포커스를 가진 시트를 닫으면 남은 시간부터 다시 흐른다', async () => {

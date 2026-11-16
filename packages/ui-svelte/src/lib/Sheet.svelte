@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from 'svelte';
   import SnackbarRegion from './SnackbarRegion.svelte';
+  import { snackbarHostMounted } from './snackbarStore.svelte.js';
   import { isTopSheet, popSheet, pushSheet, sheetCovered, sheetDepth, sheetOpen } from './sheetStack.svelte.js';
 
   let {
@@ -58,6 +59,7 @@
   }
 
   let dialogEl = $state<HTMLElement>();
+  let sheetEl = $state<HTMLElement>();
   let entry = $state.raw<ReturnType<typeof pushSheet>>();
   const isTop = $derived(isTopSheet(entry));
   const covered = $derived(sheetCovered(entry));
@@ -89,6 +91,10 @@
     closing = false;
     dragY = 0;
   }
+  // 닫힘 애니메이션이 돌지 않으면(jsdom처럼 애니메이션이 없는 환경, 앱이 animation을 끈 경우) 기다리지 않고 바로 내린다.
+  $effect(() => {
+    if (closing && sheetEl && !sheetEl.getAnimations?.().length) untrack(finishClose);
+  });
   function onanimationend(e: AnimationEvent) {
     if (closing && e.target === e.currentTarget) finishClose();
   }
@@ -146,10 +152,10 @@
   });
 
   function onkeydown(e: KeyboardEvent) {
-    // 한글 등 IME 조합 중의 Esc는 조합 취소다. keyCode 229는 isComposing을 주지 않는 IME·구형 Safari용.
-    if (e.isComposing || e.keyCode === 229) return;
     if (!open || !isTop) return;
     if (e.key === 'Escape') {
+      // 한글 등 IME 조합 중의 Esc는 조합 취소다. keyCode 229는 isComposing을 주지 않는 IME·구형 Safari용.
+      if (e.isComposing || e.keyCode === 229) return;
       e.preventDefault();
       onclose();
       return;
@@ -228,9 +234,9 @@
     inert={closing || covered}
     aria-hidden={closing ? 'true' : undefined}
     style:z-index={80 + depth}
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby={titleId}
+    role={closing ? undefined : 'dialog'}
+    aria-modal={closing ? undefined : 'true'}
+    aria-labelledby={closing ? undefined : titleId}
     tabindex="-1"
     bind:this={dialogEl}
     data-sheet-root
@@ -242,6 +248,7 @@
       class="sheet"
       class:dragging={dragY > 0}
       style:transform={dragY > 0 ? `translateY(${dragY}px)` : undefined}
+      bind:this={sheetEl}
       {onanimationend}
     >
       <div
@@ -261,7 +268,7 @@
       </header>
       <div class="body">{@render children()}</div>
     </div>
-    {#if open && isTop}<SnackbarRegion inSheet />{/if}
+    {#if open && isTop && snackbarHostMounted()}<SnackbarRegion />{/if}
   </div>
 {/if}
 
