@@ -4,6 +4,7 @@ export { default as BottomNav } from './BottomNav.svelte';
 export { default as Chip } from './Chip.svelte';
 export { default as Icon } from './Icon.svelte';
 export { default as NavItem } from './NavItem.svelte';
+export { default as ReleaseNotes } from './ReleaseNotes.svelte';
 export { default as Segmented } from './Segmented.svelte';
 export { default as Sheet } from './Sheet.svelte';
 export { default as Snackbar } from './Snackbar.svelte';

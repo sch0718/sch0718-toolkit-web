@@ -93,6 +93,8 @@ importers:
         specifier: 7.4.1
         version: 7.4.1
 
+  packages/app-update: {}
+
   packages/firebase-session:
     dependencies:
       firebase:

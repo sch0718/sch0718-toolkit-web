@@ -166,22 +166,23 @@ applyPalette(readPaletteChoice('myapp:palette', 'blue'));
 </script>
 ```
 
-| 컴포넌트        | 주요 props                                                                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Badge`         | `tone?: 'neutral' \| 'nxt' \| 'warn'`, `children`                                                                                                |
-| `Banner`        | `message`, `actionLabel?`, `onaction?`, `tone?: 'info' \| 'warn' \| 'error'`, `id?`, `live?`(기본 `true`)                                        |
-| `BottomNav`     | `items: NavLink[]`, `label?`(기본 `'주 메뉴'`). 셸 절                                                                                            |
-| `Chip`          | `selected?`, `tone?: 'default' \| 'metric'`, `disabled?`, `onclick?`, `children`                                                                 |
-| `Icon`          | `icon: IconNode`, `size?`(24), `strokeWidth?`(2), `filled?`. 아이콘 절                                                                           |
-| `NavItem`       | `href`, `label`, `short?`, `icon: IconNode`, `current?`, `shape?: 'tab' \| 'rail' \| 'row'`(기본 `row`). 셸 절                                   |
-| `Segmented`     | `options: { value, label, sub?, disabled?, reason? }[]`, `value`, `onchange(value)`, `label?`, `wide?`, `wrap?`, `onSurface?`(카드 안에 놓을 때) |
-| `Sheet`         | `open`, `title`, `onclose()`, `children`, `returnFocus?()`, `headerEnd?`, `closeLabel?`(닫기 단추의 접근성 이름, 기본 `'닫기'`)                  |
-| `Snackbar`      | `message`, `actionLabel?`, `onaction?`, `onhold?`, `onrelease?`. 보통은 직접 쓰지 않고 `SnackbarHost`가 그린다                                   |
-| `SnackbarHost`  | 없음. 앱 루트에 한 번 둔다. 위치는 CSS 변수로 정한다(스낵바 절)                                                                                  |
-| `PalettePicker` | `value: PaletteId`, `onchange(id)`, `label?`(기본 `'색 테마'`). 색 팔레트 절                                                                     |
-| `ThemePicker`   | `value: ThemeChoice`, `onchange(choice)`, `label?`(기본 `'테마'`), `wide?`, `onSurface?`                                                         |
-| `Toggle`        | `checked`, `label`, `onchange(checked)`, `disabled?`, `id?`, `describedby?`, `softDisabled?`                                                     |
-| `TopBar`        | `children`, `sticky?`, `label?`. 셸 절                                                                                                           |
+| 컴포넌트        | 주요 props                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Badge`         | `tone?: 'neutral' \| 'nxt' \| 'warn'`, `children`                                                                                                                                                                      |
+| `Banner`        | `message`, `actionLabel?`, `onaction?`, `tone?: 'info' \| 'warn' \| 'error'`, `id?`, `live?`(기본 `true`)                                                                                                              |
+| `BottomNav`     | `items: NavLink[]`, `label?`(기본 `'주 메뉴'`). 셸 절                                                                                                                                                                  |
+| `Chip`          | `selected?`, `tone?: 'default' \| 'metric'`, `disabled?`, `onclick?`, `children`                                                                                                                                       |
+| `Icon`          | `icon: IconNode`, `size?`(24), `strokeWidth?`(2), `filled?`. 아이콘 절                                                                                                                                                 |
+| `NavItem`       | `href`, `label`, `short?`, `icon: IconNode`, `current?`, `shape?: 'tab' \| 'rail' \| 'row'`(기본 `row`). 셸 절                                                                                                         |
+| `ReleaseNotes`  | `notes: { version, date, items }[]`(새것부터), `limit?`(기본 3), `title?`(기본 `'최근 바뀐 점'`), `id?`(제목 id, 기본 `'release-notes'`). 도움말에 둔다. 내용은 서비스가 정한다(`@sch0718/app-update`의 `ReleaseNote`) |
+| `Segmented`     | `options: { value, label, sub?, disabled?, reason? }[]`, `value`, `onchange(value)`, `label?`, `wide?`, `wrap?`, `onSurface?`(카드 안에 놓을 때)                                                                       |
+| `Sheet`         | `open`, `title`, `onclose()`, `children`, `returnFocus?()`, `headerEnd?`, `closeLabel?`(닫기 단추의 접근성 이름, 기본 `'닫기'`)                                                                                        |
+| `Snackbar`      | `message`, `actionLabel?`, `onaction?`, `onhold?`, `onrelease?`. 보통은 직접 쓰지 않고 `SnackbarHost`가 그린다                                                                                                         |
+| `SnackbarHost`  | 없음. 앱 루트에 한 번 둔다. 위치는 CSS 변수로 정한다(스낵바 절)                                                                                                                                                        |
+| `PalettePicker` | `value: PaletteId`, `onchange(id)`, `label?`(기본 `'색 테마'`). 색 팔레트 절                                                                                                                                           |
+| `ThemePicker`   | `value: ThemeChoice`, `onchange(choice)`, `label?`(기본 `'테마'`), `wide?`, `onSurface?`                                                                                                                               |
+| `Toggle`        | `checked`, `label`, `onchange(checked)`, `disabled?`, `id?`, `describedby?`, `softDisabled?`                                                                                                                           |
+| `TopBar`        | `children`, `sticky?`, `label?`. 셸 절                                                                                                                                                                                 |
 
 `Sheet`는 열린 동안 모달입니다. 맨 위 시트 밖은 `inert`가 되고, 겹쳐 열면 맨 위 시트만 키를 받습니다. 닫을 때는 닫힘 애니메이션이 끝날 때까지 `children`을 그대로 그리므로, `open={item !== null}`처럼 열 때 쓴 값을 닫는 순간 지우면 내려가는 동안 내용이 비어 보입니다.
 
