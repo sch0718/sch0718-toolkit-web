@@ -39,6 +39,14 @@ describe('Sheet', () => {
     expect(onclose).toHaveBeenCalledTimes(1);
   });
 
+  it('한글 조합 중 Esc(isComposing 또는 keyCode 229)로는 닫지 않는다', async () => {
+    const { onclose } = setup();
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.keyDown(dialog, { key: 'Escape', isComposing: true });
+    await fireEvent.keyDown(dialog, { key: 'Escape', keyCode: 229 });
+    expect(onclose).not.toHaveBeenCalled();
+  });
+
   it('closes on scrim click but not on dialog click', async () => {
     const { onclose, container } = setup();
     await fireEvent.click(screen.getByRole('dialog'));
@@ -87,17 +95,99 @@ describe('Sheet', () => {
     expect(document.activeElement).toBe(last);
   });
 
-  it('closes on a downward drag of more than 80px on the grab handle', async () => {
+  /** 손잡이를 [clientY, ms] 순서로 끈다. 첫 점에서 누르고 마지막 점에서 뗀다. */
+  async function drag(grab: Element, points: [number, number][]) {
+    const now = vi.spyOn(performance, 'now');
+    const [[y0, t0], ...rest] = points;
+    now.mockReturnValue(t0);
+    await fireEvent.pointerDown(grab, { pointerId: 1, clientY: y0 });
+    for (const [i, [y, t]] of rest.entries()) {
+      now.mockReturnValue(t);
+      const last = i === rest.length - 1;
+      await fireEvent.pointerMove(grab, { pointerId: 1, clientY: y });
+      if (last) await fireEvent.pointerUp(grab, { pointerId: 1, clientY: y });
+    }
+    now.mockRestore();
+  }
+
+  it('closes on a slow downward drag only past 80px on the grab handle', async () => {
     const { onclose, container } = setup();
     const grab = container.ownerDocument.querySelector('.grab')!;
-    await fireEvent.pointerDown(grab, { pointerId: 1, clientY: 100 });
-    await fireEvent.pointerMove(grab, { pointerId: 1, clientY: 150 });
-    await fireEvent.pointerUp(grab, { pointerId: 1, clientY: 150 });
+    await drag(grab, [
+      [100, 0],
+      [125, 500],
+      [150, 1000],
+    ]);
     expect(onclose).not.toHaveBeenCalled();
-    await fireEvent.pointerDown(grab, { pointerId: 1, clientY: 100 });
-    await fireEvent.pointerMove(grab, { pointerId: 1, clientY: 200 });
-    await fireEvent.pointerUp(grab, { pointerId: 1, clientY: 200 });
+    await drag(grab, [
+      [100, 0],
+      [150, 500],
+      [200, 1000],
+    ]);
     expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it('빠르게 튕겨 내리면 80px에 못 미쳐도 닫는다(20px 미만은 무시)', async () => {
+    const { onclose, container } = setup();
+    const grab = container.ownerDocument.querySelector('.grab')!;
+    await drag(grab, [
+      [100, 0],
+      [110, 10],
+    ]);
+    expect(onclose).not.toHaveBeenCalled();
+    await drag(grab, [
+      [100, 1000],
+      [120, 1020],
+      [140, 1040],
+    ]);
+    expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it('놓았을 때 닫지 않으면 끌던 자리에서 제자리로 돌아간다', async () => {
+    const { container } = setup();
+    const grab = container.ownerDocument.querySelector('.grab')!;
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.pointerDown(grab, { pointerId: 1, clientY: 100 });
+    await fireEvent.pointerMove(grab, { pointerId: 1, clientY: 105 });
+    expect(dialog.style.transform).toBe('translateY(5px)');
+    await fireEvent.pointerUp(grab, { pointerId: 1, clientY: 105 });
+    expect(dialog.style.transform).toBe('');
+  });
+
+  it('닫으면 닫힘 애니메이션이 끝날 때까지 남되 누를 수 없고 접근성 트리에서 빠진다', async () => {
+    const { rerender, container } = setup();
+    const sheet = container.ownerDocument.querySelector<HTMLElement>('.sheet')!;
+    await rerender({ open: false });
+    const root = container.ownerDocument.querySelector<HTMLElement>('.root')!;
+    expect(root.classList.contains('closing')).toBe(true);
+    expect(root.inert).toBe(true);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await fireEvent.animationEnd(sheet);
+    expect(container.ownerDocument.querySelector('.root')).toBeNull();
+  });
+
+  it('animationend가 오지 않아도 시한이 지나면 내린다', async () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender, container } = setup();
+      await rerender({ open: false });
+      expect(container.ownerDocument.querySelector('.root')).not.toBeNull();
+      await vi.advanceTimersByTimeAsync(400);
+      expect(container.ownerDocument.querySelector('.root')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('닫히는 도중 다시 열면 그대로 열린 상태로 돌아온다', async () => {
+    const { rerender, container } = setup();
+    await rerender({ open: false });
+    await rerender({ open: true });
+    const root = container.ownerDocument.querySelector<HTMLElement>('.root')!;
+    expect(root.classList.contains('closing')).toBe(false);
+    expect(root.inert).toBe(false);
+    await fireEvent.animationEnd(container.ownerDocument.querySelector('.sheet')!);
+    expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
   it('skips tabindex=-1 elements when wrapping Tab (Segmented as last control)', async () => {

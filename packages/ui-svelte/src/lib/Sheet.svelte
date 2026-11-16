@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack, type Snippet } from 'svelte';
+  import { tick, untrack, type Snippet } from 'svelte';
 
   let {
     open,
@@ -24,6 +24,12 @@
 
   const titleId = `sheet-title-${Math.random().toString(36).slice(2, 9)}`;
   const SWIPE_CLOSE_PX = 80;
+  // 빠르게 튕겨 내리면 80px에 못 미쳐도 닫는다. 최근 100ms 동안의 평균 속도로 본다.
+  const FLING_PX_PER_MS = 0.5;
+  const FLING_MIN_PX = 20;
+  const FLING_WINDOW_MS = 100;
+  // 닫힘 애니메이션의 animationend가 오지 않을 때(애니메이션 없음, jsdom 등) 내리는 시한.
+  const CLOSE_FALLBACK_MS = 400;
   // tabindex="-1"은 Tab으로 닿지 않으므로 모든 선택자에서 제외한다(Segmented의 roving tabindex 등).
   const FOCUSABLE = [
     'a[href]',
@@ -51,6 +57,34 @@
   let dialogEl = $state<HTMLElement>();
   let dragStartY: number | null = null;
   let dragY = $state(0);
+  let samples: { y: number; t: number }[] = [];
+
+  // open이 false가 된 뒤에도 닫힘 애니메이션이 끝날 때까지 DOM에 남겨 둔다.
+  // 그동안은 inert·aria-hidden이라 누를 수 없고 접근성 트리에서도 빠진다.
+  let closing = $state(false);
+  let wasOpen = false;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect.pre(() => {
+    if (open) {
+      closing = false;
+      dragY = 0; // 끌어서 닫는 도중 다시 열었으면 끌던 자리를 지운다.
+      clearTimeout(closeTimer);
+    } else if (wasOpen) {
+      closing = true;
+      closeTimer = setTimeout(finishClose, CLOSE_FALLBACK_MS);
+    }
+    wasOpen = open;
+  });
+  $effect(() => () => clearTimeout(closeTimer));
+
+  function finishClose() {
+    clearTimeout(closeTimer);
+    closing = false;
+    dragY = 0;
+  }
+  function onanimationend(e: AnimationEvent) {
+    if (closing && e.target === e.currentTarget) finishClose();
+  }
 
   // :disabled는 자기 disabled 속성 말고도 <fieldset disabled> 안의 컨트롤(첫 legend 안은 빼고)까지 잡는다.
   // 이런 컨트롤은 focus()가 되지 않아 순환의 끝으로 고르면 포커스가 멈춘다.
@@ -104,6 +138,8 @@
   });
 
   function onkeydown(e: KeyboardEvent) {
+    // 한글 등 IME 조합 중의 Esc는 조합 취소다. keyCode 229는 isComposing을 주지 않는 IME·구형 Safari용.
+    if (e.isComposing || e.keyCode === 229) return;
     if (!open) return;
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -139,20 +175,42 @@
     }
   }
 
+  function sample(y: number) {
+    const t = performance.now();
+    samples.push({ y, t });
+    while (samples.length > 2 && t - samples[0].t > FLING_WINDOW_MS) samples.shift();
+  }
+  /** 최근 FLING_WINDOW_MS 동안 아래로 움직인 속도(px/ms). */
+  function velocity(): number {
+    const a = samples[0];
+    const b = samples[samples.length - 1];
+    return b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+  }
+
   function dragStart(e: PointerEvent) {
     dragStartY = e.clientY;
+    samples = [];
+    sample(e.clientY);
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   }
   function dragMove(e: PointerEvent) {
     if (dragStartY === null) return;
     dragY = Math.max(0, e.clientY - dragStartY);
+    sample(e.clientY);
   }
-  function dragEnd(e: PointerEvent) {
+  async function dragEnd(e: PointerEvent) {
     if (dragStartY === null) return;
     const dy = e.clientY - dragStartY;
     dragStartY = null;
-    dragY = 0;
-    if (dy > SWIPE_CLOSE_PX) onclose();
+    sample(e.clientY);
+    if (dy > SWIPE_CLOSE_PX || (dy >= FLING_MIN_PX && velocity() > FLING_PX_PER_MS)) {
+      // 끌어 내린 자리에서 닫힘 애니메이션을 이어 가도록 dragY를 남긴다.
+      onclose();
+      await tick();
+      if (open) dragY = 0; // 부모가 닫지 않았으면(확인 대화 등) 제자리로 돌린다.
+    } else {
+      dragY = 0;
+    }
   }
   function dragCancel() {
     dragStartY = null;
@@ -162,8 +220,8 @@
 
 <svelte:window {onkeydown} />
 
-{#if open}
-  <div class="root">
+{#if open || closing}
+  <div class="root" class:closing inert={closing} aria-hidden={closing ? 'true' : undefined}>
     <!-- 스크림은 마우스·터치용 보조 수단이다. 키보드 사용자는 Esc와 닫기 버튼을 쓴다. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="scrim" onclick={onclose}></div>
@@ -176,6 +234,7 @@
       aria-labelledby={titleId}
       tabindex="-1"
       bind:this={dialogEl}
+      {onanimationend}
     >
       <div
         class="grab"
@@ -224,6 +283,14 @@
     border-radius: 24px 24px 0 0;
     box-shadow: var(--shadow);
     animation: up var(--dur-slow) var(--ease);
+    /* 끌다 놓았을 때 제자리로 미끄러져 돌아간다. 끄는 동안에는 손가락을 바로 따라간다. */
+    transition: transform var(--dur-base) var(--ease);
+  }
+  .closing .scrim {
+    animation: fade-out var(--dur-base) var(--ease) forwards;
+  }
+  .closing .sheet {
+    animation: down var(--dur-base) var(--ease) forwards;
   }
   .sheet:focus {
     outline: none;
@@ -290,6 +357,9 @@
       border-radius: 20px;
       animation: pop var(--dur-base) var(--ease);
     }
+    .closing .sheet {
+      animation: pop-out var(--dur-fast) var(--ease) forwards;
+    }
     .sheet.dragging {
       transform: translate(-50%, -50%) !important;
     }
@@ -318,10 +388,31 @@
       opacity: 0;
     }
   }
+  /* 닫힘은 to만 둔다. 끌어 내린 위치(인라인 transform)에서 그대로 이어 내려간다. */
+  @keyframes down {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      transform: translate(-50%, -46%);
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
   /* 움직임을 줄이는 설정이면 페이드만 쓴다. */
   @media (prefers-reduced-motion: reduce) {
     .sheet {
       animation: fade var(--dur-fast) linear;
+      transition: none;
+    }
+    .closing .sheet {
+      animation: fade-out var(--dur-fast) linear forwards;
     }
   }
 </style>
