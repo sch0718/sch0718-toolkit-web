@@ -6,6 +6,7 @@ import Badge from '../src/lib/Badge.svelte';
 import Banner from '../src/lib/Banner.svelte';
 import Chip from '../src/lib/Chip.svelte';
 import Icon from '../src/lib/Icon.svelte';
+import ReleaseNotes from '../src/lib/ReleaseNotes.svelte';
 import ThemePicker from '../src/lib/ThemePicker.svelte';
 import Toggle from '../src/lib/Toggle.svelte';
 import toggleSource from '../src/lib/Toggle.svelte?raw';
@@ -232,5 +233,25 @@ describe('PalettePicker', () => {
     await fireEvent.keyDown(current, { key: 'Tab' });
     expect(onchange).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(current);
+  });
+});
+
+describe('ReleaseNotes', () => {
+  const notes = [
+    { version: 'v1.2.0', date: '2026-11-20', items: ['새 기능', '고친 점'] },
+    { version: 'v1.1.0', date: '2026-11-10', items: ['도움말'] },
+  ];
+
+  it('최근 릴리스를 제목 아래에 limit개까지 보여 준다', () => {
+    render(ReleaseNotes, { notes, limit: 1 });
+    const section = screen.getByRole('region', { name: '최근 바뀐 점' });
+    expect(section.textContent).toContain('v1.2.0');
+    expect(section.textContent).toContain('고친 점');
+    expect(section.textContent).not.toContain('v1.1.0');
+  });
+
+  it('릴리스가 없으면 아무것도 그리지 않는다', () => {
+    const { container } = render(ReleaseNotes, { notes: [] });
+    expect(container.querySelector('section')).toBeNull();
   });
 });

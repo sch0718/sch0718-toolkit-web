@@ -6,6 +6,7 @@
     Icon,
     NavItem,
     PalettePicker,
+    ReleaseNotes,
     Sheet,
     SnackbarHost,
     ThemePicker,
@@ -17,6 +18,7 @@
     type ThemeChoice,
   } from '@sch0718/ui-svelte';
   const house: IconNode = [['path', { d: 'M3 10l9-7 9 7' }]];
+  const notes = [{ version: 'v1.0.0', date: '2026-11-16', items: ['첫 판'] }] as const;
   const items: NavLink[] = [{ href: '#/', label: '홈', short: '홈', icon: house, current: true }];
 
   let open = $state(true);
@@ -38,3 +40,5 @@
 <SnackbarHost />
 
 <PalettePicker value={palette} onchange={(id) => (palette = id)} />
+
+<ReleaseNotes {notes} limit={2} />

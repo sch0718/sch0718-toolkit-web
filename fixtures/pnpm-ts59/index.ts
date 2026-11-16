@@ -231,3 +231,18 @@ applyPalette(palette);
 export const paletteSaved: boolean = savePaletteChoice('compat:palette', 'blue');
 export const paletteOptions: readonly PaletteOption[] = PALETTES;
 export const isPalette: boolean = isPaletteId('blue');
+
+import {
+  takeUnseenReleases,
+  watchAppUpdate,
+  type ReleaseNote,
+  type WatchAppUpdateOptions,
+} from '@sch0718/app-update';
+
+const notes: ReleaseNote[] = [{ version: 'v1.0.0', date: '2026-11-16', items: ['첫 판'] }];
+export const unseen: ReleaseNote[] = takeUnseenReleases(
+  notes,
+  createSeenStore({ key: 'compat:release-seen:v1', ids: notes.map((n) => n.version) }),
+);
+const updateOptions: WatchAppUpdateOptions = { onUpdate: (reload) => reload(), autoReloadMs: 0 };
+export const stopUpdate: () => void = watchAppUpdate(updateOptions);
