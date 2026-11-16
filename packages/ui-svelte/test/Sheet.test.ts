@@ -628,6 +628,8 @@ describe('Sheet', () => {
     await rerender({ open: false });
     expect(status.hasAttribute('aria-hidden')).toBe(false);
     expect(status.textContent).toBe('');
+    // 단추는 바로 누를 수 있게 라이브 영역 밖에 먼저 그린다.
+    expect(host.getByRole('button', { name: '되돌리기' })).toBeTruthy();
     await nextFrame();
     expect(status.textContent).toContain('삭제했어요');
   });

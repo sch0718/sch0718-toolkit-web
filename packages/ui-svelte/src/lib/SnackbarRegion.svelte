@@ -10,22 +10,25 @@
   } from './snackbarStore.svelte.js';
 
   let { hidden = false }: { hidden?: boolean } = $props();
-  // 숨김(aria-hidden, 시트 배경의 inert)이 풀린 그 순간 내용을 넣으면 화면 읽기 프로그램에는 「내용을 가진 채 새로
-  // 나타난 영역」으로 보여 읽히지 않는다(시트를 닫으며 알림을 띄우는 흐름). 한 프레임 뒤에 넣는다.
-  let shown = $state(!hidden);
+  // 숨김(aria-hidden, 시트 배경의 inert)이 풀린 그 순간 라이브 영역에 내용을 넣으면 화면 읽기 프로그램에는 「내용을
+  // 가진 채 새로 나타난 영역」으로 보여 읽히지 않는다(시트를 닫으며 알림을 띄우는 흐름). 드러난 첫 프레임에는 라이브
+  // 영역 밖에 그리고(단추는 바로 누를 수 있다), 다음 프레임에 라이브 영역으로 옮겨 알린다.
+  let settled = $state(!hidden);
   $effect(() => {
     if (hidden) {
-      shown = false;
+      settled = false;
       return;
     }
-    if (shown) return;
-    const frame = requestAnimationFrame(() => (shown = true));
+    if (settled) return;
+    const frame = requestAnimationFrame(() => (settled = true));
     return () => cancelAnimationFrame(frame);
   });
-  const item = $derived(shown ? currentSnackbar() : null);
+  const item = $derived(hidden ? null : currentSnackbar());
   // 같은 알림을 다시 그리면(숨겼다 드러냄, 다른 영역) 새 소유자로 본다. derived라 표시 중에는 판정이 바뀌지 않는다.
   const owner = $derived(item ? {} : null);
-  const announced = $derived(item && owner ? !snackbarClaimedElsewhere(item.id, owner) : false);
+  const announced = $derived(
+    settled && item && owner ? !snackbarClaimedElsewhere(item.id, owner) : false,
+  );
   // 한 프레임 이상 라이브 영역에 머문 뒤에야 「알렸다」고 기록한다. 그 전에 사라지면(시트를 닫으며 알림을 띄움)
   // 다음 영역이 라이브 영역에 넣어 알린다.
   $effect(() => {
