@@ -25,6 +25,11 @@ function withAnimations(): () => void {
   };
 }
 
+async function nextFrame(): Promise<void> {
+  await new Promise(requestAnimationFrame);
+  await tick();
+}
+
 function setup(props: Record<string, unknown> = {}) {
   const onclose = vi.fn();
   const view = render(Sheet, { open: true, title: '지표 선택', onclose, children: body, ...props });
@@ -580,6 +585,7 @@ describe('Sheet', () => {
     showSnackbar('이전 알림');
     await tick();
     expect(host.container.querySelector('[role="status"]')!.textContent).toContain('이전 알림');
+    await nextFrame(); // 한 프레임 이상 보여야 「알렸다」고 기록된다.
     const { rerender } = setup();
     await tick();
     const dialog = screen.getByRole('dialog');
@@ -591,6 +597,7 @@ describe('Sheet', () => {
     );
     expect(screen.getByRole('status').closest('[role="dialog"]')).toBe(dialog);
     await rerender({ open: false });
+    await nextFrame();
     expect(host.container.textContent).toContain('이전 알림');
     expect(host.container.querySelector('[role="status"]')!.textContent).toBe('');
     await rerender({ open: true });
@@ -600,12 +607,29 @@ describe('Sheet', () => {
     expect(screen.getByRole('dialog').contains(live)).toBe(true);
     expect(live.textContent).toContain('삭제했어요');
     expect(host.container.textContent?.trim()).toBe('');
+    await nextFrame();
     await rerender({ open: false });
+    await nextFrame();
     expect(host.container.textContent).toContain('삭제했어요');
     expect(host.container.querySelector('[role="status"]')!.textContent).toBe('');
     showSnackbar('새 알림');
     await tick();
     expect(host.container.querySelector('[role="status"]')!.textContent).toContain('새 알림');
+  });
+
+  it('시트를 닫으며 띄운 알림은 호스트 영역이 드러난 다음 프레임에 라이브 영역에 넣는다', async () => {
+    const host = render(SnackbarHost);
+    const { rerender } = setup();
+    await tick();
+    const status = host.container.querySelector('[role="status"]')!;
+    expect(status.getAttribute('aria-hidden')).toBe('true');
+    // 지우고 닫는 핸들러처럼 닫기와 알림을 한 번에 한다.
+    showSnackbar('삭제했어요', { label: '되돌리기', run: () => {} });
+    await rerender({ open: false });
+    expect(status.hasAttribute('aria-hidden')).toBe(false);
+    expect(status.textContent).toBe('');
+    await nextFrame();
+    expect(status.textContent).toContain('삭제했어요');
   });
 
   it('SnackbarHost가 없으면 시트 안에도 알림 영역을 두지 않는다', () => {

@@ -40,10 +40,14 @@ export function snackbarHostMounted(): boolean {
   return hosts > 0;
 }
 
-/** 같은 알림은 처음 그린 영역에서만 라이브 영역에 넣는다. */
-export function claimSnackbar(id: number, owner: object): boolean {
+/** 영역이 이 알림을 한 프레임 이상 라이브 영역에 보였다고 기록한다(그 영역이 알렸다고 본다). */
+export function claimSnackbar(id: number, owner: object): void {
   if (claimed?.id !== id) claimed = { id, owner };
-  return claimed.owner === owner;
+}
+
+/** 다른 영역이 이미 알린 알림이면 true. 같은 알림을 영역을 옮겨 그릴 때 다시 읽히지 않게 한다. */
+export function snackbarClaimedElsewhere(id: number, owner: object): boolean {
+  return claimed?.id === id && claimed.owner !== owner;
 }
 
 /** 렌더링용 현재 스낵바(없으면 null). */

@@ -1,11 +1,39 @@
 <script lang="ts">
   import Snackbar from './Snackbar.svelte';
-  import { claimSnackbar, currentSnackbar, holdSnackbar, releaseSnackbar, runSnackbarAction } from './snackbarStore.svelte.js';
+  import {
+    claimSnackbar,
+    currentSnackbar,
+    holdSnackbar,
+    releaseSnackbar,
+    runSnackbarAction,
+    snackbarClaimedElsewhere,
+  } from './snackbarStore.svelte.js';
 
   let { hidden = false }: { hidden?: boolean } = $props();
-  const item = $derived(hidden ? null : currentSnackbar());
-  // 숨겼다 다시 그리면 같은 영역이라도 새 소유자로 본다. derived가 표시 중의 판정을 유지한다.
-  const announced = $derived(item ? claimSnackbar(item.id, {}) : false);
+  // 숨김(aria-hidden, 시트 배경의 inert)이 풀린 그 순간 내용을 넣으면 화면 읽기 프로그램에는 「내용을 가진 채 새로
+  // 나타난 영역」으로 보여 읽히지 않는다(시트를 닫으며 알림을 띄우는 흐름). 한 프레임 뒤에 넣는다.
+  let shown = $state(!hidden);
+  $effect(() => {
+    if (hidden) {
+      shown = false;
+      return;
+    }
+    if (shown) return;
+    const frame = requestAnimationFrame(() => (shown = true));
+    return () => cancelAnimationFrame(frame);
+  });
+  const item = $derived(shown ? currentSnackbar() : null);
+  // 같은 알림을 다시 그리면(숨겼다 드러냄, 다른 영역) 새 소유자로 본다. derived라 표시 중에는 판정이 바뀌지 않는다.
+  const owner = $derived(item ? {} : null);
+  const announced = $derived(item && owner ? !snackbarClaimedElsewhere(item.id, owner) : false);
+  // 한 프레임 이상 라이브 영역에 머문 뒤에야 「알렸다」고 기록한다. 그 전에 사라지면(시트를 닫으며 알림을 띄움)
+  // 다음 영역이 라이브 영역에 넣어 알린다.
+  $effect(() => {
+    if (!item || !owner || !announced) return;
+    const id = item.id;
+    const frame = requestAnimationFrame(() => claimSnackbar(id, owner));
+    return () => cancelAnimationFrame(frame);
+  });
 </script>
 
 {#snippet content()}
