@@ -47,7 +47,7 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./migrations/0001_users_sessions.sql ./migrations/firebase-session-0002_social_sessions.sql ./migrations/firebase-session-0003_social_profile.sql"
   },
   "dependencies": {
-    "jose": "^6.2.15"
+    "jose": "^6.2.17"
   },
   "peerDependencies": {
     "firebase": "^12.0.0"
