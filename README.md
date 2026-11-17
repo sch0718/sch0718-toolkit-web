@@ -36,29 +36,31 @@
 
 직접 만들지 않고 널리 쓰는 도구를 골랐습니다. 별 수는 2026-10-27 GitHub 기준입니다.
 
-| 용도                        | 도구                                                                                                                                  |            별 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------: |
-| 패키지 매니저·workspace     | [pnpm](https://github.com/pnpm/pnpm) 11                                                                                               |         36.9k |
-| 버전·변경 기록·발행         | [Changesets](https://github.com/changesets/changesets)                                                                                |         12.5k |
-| 빌드(JS + `.d.ts`)          | [TypeScript](https://github.com/microsoft/TypeScript) `tsc` 5.9                                                                       |        111.6k |
-| 빌드(Svelte 패키지)         | [`@sveltejs/package`](https://github.com/sveltejs/kit/tree/main/packages/package) 2.5.8 (별: sveltejs/kit)                            |         20.9k |
-| Worker 토큰 검증            | [jose](https://github.com/panva/jose)                                                                                                 |          7.8k |
-| 시험                        | [Vitest](https://github.com/vitest-dev/vitest)                                                                                        |         17.3k |
-| Svelte 컴포넌트 시험        | [Testing Library Svelte](https://github.com/testing-library/svelte-testing-library)                                                   |           665 |
-| 시험용 DOM                  | [jsdom](https://github.com/jsdom/jsdom) 29 (30은 쓰지 않음, 아래)                                                                     |         21.7k |
-| 브라우저 시험(접근성 트리)  | [Playwright](https://github.com/microsoft/playwright) 1.64 (100.3k, 2026-11-16 확인)                                                  |        100.3k |
-| 린트                        | [ESLint](https://github.com/eslint/eslint) + [typescript-eslint](https://github.com/typescript-eslint/typescript-eslint)              | 27.6k / 16.5k |
-| 포맷                        | [Prettier](https://github.com/prettier/prettier)                                                                                      |         52.4k |
-| tsconfig 기본값             | [tsconfig/bases](https://github.com/tsconfig/bases) `@tsconfig/strictest`                                                             |          7.9k |
-| 패키지 형식 검사            | [publint](https://github.com/publint/publint), [Are the types wrong?](https://github.com/arethetypeswrong/arethetypeswrong.github.io) |   1.3k / 1.6k |
-| 번들 크기 한도              | [Size Limit](https://github.com/ai/size-limit)                                                                                        |          7.0k |
-| 색 대비 계산(`token-check`) | [chroma.js](https://github.com/gka/chroma.js) 3.2 (10.6k, 2026-11-13 확인)                                                            |         10.6k |
+| 용도                                       | 도구                                                                                                                                  |            별 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------: |
+| 패키지 매니저·workspace                    | [pnpm](https://github.com/pnpm/pnpm) 11                                                                                               |         36.9k |
+| 버전·변경 기록·발행                        | [Changesets](https://github.com/changesets/changesets)                                                                                |         12.5k |
+| 빌드(JS + `.d.ts`)                         | [TypeScript](https://github.com/microsoft/TypeScript) `tsc` 5.9                                                                       |        111.6k |
+| 빌드(Svelte 패키지)                        | [`@sveltejs/package`](https://github.com/sveltejs/kit/tree/main/packages/package) 2.5.8 (별: sveltejs/kit)                            |         20.9k |
+| Worker 토큰 검증                           | [jose](https://github.com/panva/jose)                                                                                                 |          7.8k |
+| 시험                                       | [Vitest](https://github.com/vitest-dev/vitest)                                                                                        |         17.3k |
+| Svelte 컴포넌트 시험                       | [Testing Library Svelte](https://github.com/testing-library/svelte-testing-library)                                                   |           665 |
+| 시험용 DOM                                 | [jsdom](https://github.com/jsdom/jsdom) 29 (30은 쓰지 않음, 아래)                                                                     |         21.7k |
+| 브라우저 시험(접근성 트리)                 | [Playwright](https://github.com/microsoft/playwright) 1.64 (100.3k, 2026-11-16 확인)                                                  |        100.3k |
+| 린트                                       | [ESLint](https://github.com/eslint/eslint) + [typescript-eslint](https://github.com/typescript-eslint/typescript-eslint)              | 27.6k / 16.5k |
+| 포맷                                       | [Prettier](https://github.com/prettier/prettier)                                                                                      |         52.4k |
+| tsconfig 기본값                            | [tsconfig/bases](https://github.com/tsconfig/bases) `@tsconfig/strictest`                                                             |          7.9k |
+| 패키지 형식 검사                           | [publint](https://github.com/publint/publint), [Are the types wrong?](https://github.com/arethetypeswrong/arethetypeswrong.github.io) |   1.3k / 1.6k |
+| 번들 크기 한도                             | [Size Limit](https://github.com/ai/size-limit)                                                                                        |          7.0k |
+| 색 대비 계산(`token-check`)                | [chroma.js](https://github.com/gka/chroma.js) 3.2 (10.6k, 2026-11-13 확인)                                                            |         10.6k |
+| 웹 플랫폼 가이드(에이전트 스킬, 개발 도구) | [Modern Web Guidance](https://github.com/GoogleChrome/modern-web-guidance) (21.5k, 2026-11-17 확인)                                   |         21.5k |
 
 - 선언 파일은 TypeScript 5.9로 만듭니다. 쓰는 서비스 중 가장 낮은 버전(가즈아 5.9)에 맞춘 것이고, TS 6(랜드마크)에서도 호환 시험으로 확인합니다. Dependabot은 TypeScript 메이저 버전을 올리지 않습니다(`.github/dependabot.yml`).
 - `@sveltejs/package` 3은 TypeScript 6을 요구해 2.5를 씁니다.
 - jsdom은 29.1.1에 고정합니다. 30은 계산된 `background`를 펼치면서 `var()`를 버려 가즈아에서 옮긴 Toggle 시험 둘이 깨집니다. Dependabot도 jsdom 메이저 버전을 올리지 않습니다.
 - 패키지 형식 검사에서 `ui-svelte`는 publint만 씁니다. Are the types wrong?이 `.svelte` 파일을 이해하지 못하기 때문입니다. `firebase-session`은 마이그레이션 SQL 진입점(`./migrations/0001_users_sessions.sql`)을 Are the types wrong? 검사에서 뺍니다.
 - Playwright는 jsdom에 없는 접근성 트리를 보는 시트 시험(`pnpm test:browser`)에만 씁니다. Chromium·WebKit이 설치돼 있어야 해서 `verify`와 CI에는 넣지 않고, 시트·스낵바를 바꿀 때 직접 돌립니다.
+- Modern Web Guidance는 패키지에 들어가지 않는 개발 도구입니다. 코딩 에이전트가 화면·CSS 작업 전에 웹 표준 기능의 쓰는 법과 Baseline 호환성을 찾아보게 해, 라이브러리나 직접 만든 코드 대신 플랫폼 기능을 고르게 합니다(런타임 의존성 0 원칙과 맞습니다). Chrome·Edge·Firefox·MDN 팀이 관리하고 Apache-2.0입니다. 쓰는 법은 `CLAUDE.md`에 있습니다.
 - 번들러(tsup·tsdown 등)는 쓰지 않습니다. 순수 TS 패키지는 `tsc` 출력으로 충분하고, Svelte 패키지(`ui-svelte`)만 `@sveltejs/package`로 빌드합니다. 필요해지면 그때 고릅니다.
 
 ## 개발
