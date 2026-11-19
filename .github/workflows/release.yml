@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+    # 문서만 바뀐 push로는 발행 작업을 돌리지 않는다. 코드·설정이 함께 바뀌면 그대로 돈다(`.changeset/*.md`는 루트가 아니라 제외되지 않는다).
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.claude/**'
+      - 'LICENSE'
 
 concurrency: release
 
