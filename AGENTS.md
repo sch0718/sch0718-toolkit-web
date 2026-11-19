@@ -1,0 +1,17 @@
+# sch0718-toolkit-web 작업 규칙
+
+- 사용자에게 보이는 답·문서·커밋 메시지는 한국어로 씁니다.
+- 무엇을 넣을지는 README의 「넣는 기준」을 따릅니다. 서비스 하나의 사정만으로 패키지 API를 바꾸지 않습니다.
+- 새로 만들기 전에 같은 일을 하는 널리 쓰는 라이브러리(GitHub 별이 많고 업계에서 쓰는 것)가 있는지 먼저 찾습니다. 있으면 가져다 쓰고, 고른 이유와 별 수(확인 날짜)를 README 「쓰는 도구」나 패키지 README에 적습니다.
+- 브라우저 패키지는 런타임 의존성 0을 지향합니다(Worker 전용 진입점은 예외: `firebase-session/worker`의 jose). 의존성을 더하면 `.size-limit.json` 한도와 서비스 첫 로딩 예산(랜드마크 `perf-budget.json`의 `initialJsGzipMax`)을 확인합니다.
+- 패키지를 바꾸는 PR에는 `pnpm changeset` 기록을 넣습니다. 이미 발행한 버전은 덮어쓰지 않습니다.
+- 끝내기 전에 `pnpm run verify`와 `pnpm compat`(빌드 후)을 돌립니다. `pnpm ci`는 pnpm 11 내장 명령이라 쓰지 않습니다.
+- main에 직접 커밋하지 않고 브랜치·PR로 작업합니다.
+- 비밀값(토큰, 키)을 저장소에 넣지 않습니다. 발행은 릴리스 워크플로(GitHub Packages, `GITHUB_TOKEN`)로만 합니다.
+
+## 웹 화면
+
+화면 작업 규칙은 `~/.claude/rules/modern-web.md`(Claude는 웹 파일을 다룰 때 자동으로 싣고, Codex는 직접 읽는다)를 따르고, 이 저장소에서는 아래를 더합니다.
+
+- 대상: 브라우저 패키지(`packages/*`), 특히 여러 서비스가 함께 쓰는 `ui-svelte`. Node·Worker 전용 진입점은 대상이 아닙니다.
+- 대체 코드도 런타임 의존성 0 원칙과 `.size-limit.json` 한도를 지킵니다. 폴리필 패키지를 더하지 않습니다. 가이드를 따라 패키지 API를 바꿀 때도 「넣는 기준」을 따르고 changeset을 넣습니다.

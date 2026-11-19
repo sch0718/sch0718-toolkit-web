@@ -60,7 +60,7 @@
 - jsdom은 29.1.1에 고정합니다. 30은 계산된 `background`를 펼치면서 `var()`를 버려 가즈아에서 옮긴 Toggle 시험 둘이 깨집니다. Dependabot도 jsdom 메이저 버전을 올리지 않습니다.
 - 패키지 형식 검사에서 `ui-svelte`는 publint만 씁니다. Are the types wrong?이 `.svelte` 파일을 이해하지 못하기 때문입니다. `firebase-session`은 마이그레이션 SQL 진입점(`./migrations/0001_users_sessions.sql`)을 Are the types wrong? 검사에서 뺍니다.
 - Playwright는 jsdom에 없는 접근성 트리를 보는 시트 시험(`pnpm test:browser`)에만 씁니다. Chromium·WebKit이 설치돼 있어야 해서 `verify`와 CI에는 넣지 않고, 시트·스낵바를 바꿀 때 직접 돌립니다.
-- Modern Web Guidance는 패키지에 들어가지 않는 개발 도구입니다. 코딩 에이전트가 화면·CSS 작업 전에 웹 표준 기능의 쓰는 법과 Baseline 호환성을 찾아보게 해, 라이브러리나 직접 만든 코드 대신 플랫폼 기능을 고르게 합니다(런타임 의존성 0 원칙과 맞습니다). Chrome·Edge·Firefox·MDN 팀이 관리하고 Apache-2.0입니다. 쓰는 법은 `CLAUDE.md`에 있습니다.
+- Modern Web Guidance는 패키지에 들어가지 않는 개발 도구입니다. 코딩 에이전트가 화면·CSS 작업 전에 웹 표준 기능의 쓰는 법과 Baseline 호환성을 찾아보게 해, 라이브러리나 직접 만든 코드 대신 플랫폼 기능을 고르게 합니다(런타임 의존성 0 원칙과 맞습니다). Chrome·Edge·Firefox·MDN 팀이 관리하고 Apache-2.0입니다. 쓰는 법은 `AGENTS.md`에 있습니다.
 - 번들러(tsup·tsdown 등)는 쓰지 않습니다. 순수 TS 패키지는 `tsc` 출력으로 충분하고, Svelte 패키지(`ui-svelte`)만 `@sveltejs/package`로 빌드합니다. 필요해지면 그때 고릅니다.
 
 ## 개발
