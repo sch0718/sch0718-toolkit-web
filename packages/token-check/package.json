@@ -27,10 +27,10 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "chroma-js": "3.2.0"
+    "chroma-js": "3.3.0"
   },
   "devDependencies": {
-    "@types/chroma-js": "3.1.2"
+    "@types/chroma-js": "3.1.3"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
