@@ -10,20 +10,17 @@ export const SOCIAL_PROVIDERS: Record<
   SocialProvider,
   {
     issuer: string;
-    authorizeUrl: string;
     tokenUrl: string;
     jwksUrl: string;
   }
 > = {
   kakao: {
     issuer: 'https://kauth.kakao.com',
-    authorizeUrl: 'https://kauth.kakao.com/oauth/authorize',
     tokenUrl: 'https://kauth.kakao.com/oauth/token',
     jwksUrl: 'https://kauth.kakao.com/.well-known/jwks.json',
   },
   naver: {
     issuer: 'https://nid.naver.com',
-    authorizeUrl: 'https://nid.naver.com/oauth2/authorize',
     tokenUrl: 'https://nid.naver.com/oauth2/token',
     jwksUrl: 'https://nid.naver.com/oauth2/jwks',
   },
