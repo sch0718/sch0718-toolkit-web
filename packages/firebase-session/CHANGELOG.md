@@ -1,5 +1,11 @@
 # @sch0718/firebase-session
 
+## 0.6.1
+
+### Patch Changes
+
+- [#52](https://github.com/sch0718/sch0718-toolkit-web/pull/52) [`8d603c2`](https://github.com/sch0718/sch0718-toolkit-web/commit/8d603c2e4ca83d5a8a8babdccf81aba072d8015a) Thanks [@sch0718](https://github.com/sch0718)! - `/worker`의 `SOCIAL_PROVIDERS`에서 쓰지 않던 `authorizeUrl`을 뺀다. 인가 주소는 `/client`의 `socialAuthorizeUrl()`이 만든다.
+
 ## 0.6.0
 
 ### Minor Changes
